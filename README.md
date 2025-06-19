@@ -1,3 +1,53 @@
+# Installation du projet BaliFit (Laravel)
+
+## 1. Installer les dépendances
+
+```bash
+composer install
+```
+
+## 2. Préparer l'environnement
+
+```bash
+cp .env.example .env
+```
+
+## 3. Créer une base de données
+
+- Crée une base de données MySQL (par exemple : `balifit`).
+
+## 4. Configurer le fichier `.env`
+
+- Ouvre le fichier `.env` et configure les variables suivantes avec tes identifiants MySQL :
+
+```
+DB_DATABASE=balifit
+DB_USERNAME=ton_user
+DB_PASSWORD=ton_mot_de_passe
+```
+
+## 5. Générer la clé d'application
+
+```bash
+php artisan key:generate
+```
+
+## 6. Lancer les migrations et les seeders
+
+```bash
+php artisan migrate --seed
+```
+
+## 7. Lancer le serveur de développement
+
+```bash
+php artisan serve
+```
+
+---
+
+Ton API est maintenant prête à être utilisée !
+
 $composer create-project laravel/laravel BaliFit
 ->Installing laravel/laravel (v10.2.2)
 

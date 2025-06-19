@@ -91,6 +91,14 @@ class User extends Authenticatable
         return $this->hasMany(Training::class);
     }
 
+    /**
+     * Tous les équipements créés par l'utilisateur
+     */
+    public function equipments()
+    {
+        return $this->hasMany(Equipment::class);
+    }
+
     /* tout les sceance créé par l'admin */
     public function seances(){
         return $this->hasMany(Seance::class, 'admin_id');

@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('formations', function (Blueprint $table) {
+        Schema::create('equipments', function (Blueprint $table) {
             $table->id();
-            $table->string('blabla');
-            $table->string('okok');
+            $table->string('name');
+            $table->string('image')->nullable();
+            $table->text('description')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
             $table->timestamps();
         });
     }
@@ -24,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('formations');
+        Schema::dropIfExists('equipments');
     }
-};
+}; 
