@@ -9,6 +9,11 @@ class Equipment extends Model
 {
     use HasFactory;
 
+    /**
+     * Nom de la table associée au modèle
+     */
+    protected $table = 'equipments';
+
     protected $fillable = [
         'name',
         'description',

@@ -14,17 +14,17 @@ class TrainingController extends Controller
      */
     public function index()
     {
-        $trainings = Training::all()->load('categories');
+        $trainings = Training::with(['categories', 'equipments'])->get();
         return response()->json([
             'trainings' => $trainings,
-        ], 201);
+        ], 200);
     } 
     public function indexChallenger()
     {
-        $trainings = Training::all()->load('categories');
+        $trainings = Training::with(['categories', 'equipments'])->get();
         return response()->json([
             'trainings' => $trainings,
-        ], 201);
+        ], 200);
     }
 
     /**
@@ -45,28 +45,42 @@ class TrainingController extends Controller
             'description' => 'required',
             'image' => 'nullable|image',
             'video' => 'nullable',
-            'categories' => 'required|array'
+            'categories' => 'required|array',
+            'equipments' => 'nullable|array'
         ]);
+        
         $image_name = null;
         if($request->hasFile('image')){
             $image_name = $request->image->getClientOriginalName();
             $urlimg = $request->image->storeAs('trainings' , $image_name , 'public');
         }
+        
         $video_name = null;
         if($request->hasFile('video')){
             $video_name = $request->video->getClientOriginalName();
             $urlvid = $request->video->storeAs('training_videos' , $video_name , 'public');
         }
-        Training::create([
+        
+        $training = Training::create([
             'name' => $request->name,
             'description' => $request->description,
             'image' => $image_name,
             'video' => $video_name,
             'user_id' => Auth::user()->id,
-        ])->categories()->attach($request['categories']);
+        ]);
+
+        // Attacher les catégories
+        $training->categories()->attach($request->categories);
+        
+        // Attacher les équipements si fournis
+        if ($request->has('equipments') && !empty($request->equipments)) {
+            $training->equipments()->attach($request->equipments);
+        }
+
         return response()->json([
-            'message' => "L'exercice' a bien été créé."
-        ], 200);
+            'message' => "L'exercice a bien été créé.",
+            'training' => $training->load(['categories', 'equipments'])
+        ], 201);
     }
 
     /**
@@ -77,16 +91,18 @@ class TrainingController extends Controller
         return response()->json([
             'training' => $training,
             'categories' => $training->categories,
+            'equipments' => $training->equipments,
         ], 200);
     }
+    
     public function showChallenger(Training $training)
     {
         return response()->json([
             'training' => $training,
             'categories' => $training->categories,
+            'equipments' => $training->equipments,
         ], 200);
     }
-
 
     /**
      * Show the form for editing the specified resource.
@@ -106,10 +122,12 @@ class TrainingController extends Controller
             'description' => 'required',
             'image' => 'nullable|image',
             'video' => 'nullable|mimetypes:video/mp4',
-            'categories' => 'required|array'
+            'categories' => 'required|array',
+            'equipments' => 'nullable|array'
         ]);
-        $training->name = $request['name'];
-        $training->description = $request['description'];
+        
+        $training->name = $request->name;
+        $training->description = $request->description;
 
         if($request->hasFile('image')){
             $image_name = $request->image->getClientOriginalName();
@@ -122,13 +140,22 @@ class TrainingController extends Controller
             $urlvid = $request->video->storeAs('training_videos' , $video_name , 'public');
             $training->video = $video_name;
         }
-        $training->categories()->detach(); // Supprimer toutes les catégories associées
-        $categories = $request->input('categories', []);
-        $training->categories()->attach($categories); // Ajouter les nouvelles catégories sélectionnées
+        
+        // Mettre à jour les catégories
+        $training->categories()->detach();
+        $training->categories()->attach($request->categories);
+
+        // Mettre à jour les équipements
+        $training->equipments()->detach();
+        if ($request->has('equipments') && !empty($request->equipments)) {
+            $training->equipments()->attach($request->equipments);
+        }
 
         $training->save();
+        
         return response()->json([
-            'message' => "L'exercice a bien été modifié."
+            'message' => "L'exercice a bien été modifié.",
+            'training' => $training->load(['categories', 'equipments'])
         ], 200);
     }
 
@@ -138,10 +165,12 @@ class TrainingController extends Controller
     public function destroy(Training $training)
     {
         $training->categories()->detach();
+        $training->equipments()->detach();
         $training->user()->dissociate();
         $training->delete();
+        
         return response()->json([
             'message' => "L'exercice a bien été supprimé."
-        ], 201);
+        ], 200);
     }
 }

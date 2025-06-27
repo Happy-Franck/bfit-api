@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdviceController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProduitController;
 use App\Http\Controllers\RoleController;
@@ -81,6 +82,14 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::put('category/{category}', [CategoryController::class, 'update']);
         Route::delete('category/{category}', [CategoryController::class, 'destroy']);
 
+        //CRUD equipment
+        Route::get('equipment', [EquipmentController::class, 'index']);
+        Route::get('equipment/{equipment}', [EquipmentController::class, 'show']);
+        Route::post('equipment', [EquipmentController::class, 'store']);
+        Route::put('equipment/{equipment}', [EquipmentController::class, 'update']);
+        Route::delete('equipment/{equipment}', [EquipmentController::class, 'destroy']);
+        Route::get('equipment/{equipment}/trainings', [EquipmentController::class, 'getTrainingsByEquipment']);
+
         //CRUD séance
         Route::get('seance', [SeanceController::class, 'indexSeance']);
         Route::get('seance/{seance}', [SeanceController::class, 'show']);
@@ -100,6 +109,11 @@ Route::middleware(['auth:sanctum','role:coach'])->name('coach.')->prefix("/coach
 
         //Get all categories
         Route::get('category', [CategoryController::class, 'index']);
+
+        //Get all equipments & trainings by equipment
+        Route::get('equipment', [EquipmentController::class, 'index']);
+        Route::get('equipment/{equipment}', [EquipmentController::class, 'show']);
+        Route::get('equipment/{equipment}/trainings', [EquipmentController::class, 'getTrainingsByEquipment']);
 
         // CRUD training
         Route::get('training', [TrainingController::class, 'index']);
@@ -137,6 +151,11 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         
         //Get all categories
         Route::get('category', [CategoryController::class, 'index']);
+        
+        //Get all equipments & trainings by equipment
+        Route::get('equipment', [EquipmentController::class, 'index']);
+        Route::get('equipment/{equipment}', [EquipmentController::class, 'show']);
+        Route::get('equipment/{equipment}/trainings', [EquipmentController::class, 'getTrainingsByEquipment']);
         
         //get trainings
         Route::get('training', [TrainingController::class, 'indexChallenger']);
