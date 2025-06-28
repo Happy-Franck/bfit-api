@@ -25,7 +25,8 @@ class AuthController extends Controller
         
         $avatar = null;
         if ($request->hasFile('avatar')) {
-            $avatarName = $request->file('avatar')->store('avatars', 'public');
+            $avatarName = $request->file('avatar')->getClientOriginalName();
+            $request->file('avatar')->storeAs('avatar', $avatarName, 'public');
             $avatar = $avatarName;
         }
         
