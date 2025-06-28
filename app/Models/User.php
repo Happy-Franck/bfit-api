@@ -23,6 +23,13 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar',
+        'telephone',
+        'cin',
+        'taille',
+        'poids',
+        'objectif',
+        'sexe',
+        'date_naissance',
     ];
 
     /**
@@ -43,6 +50,9 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'poids' => 'array',
+        'date_naissance' => 'date',
+        'taille' => 'float',
     ];
 
     //tout les produits que l'user a publié $user->produits

@@ -14,20 +14,39 @@ class AuthController extends Controller
             'name' => 'required',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:8',
-            'avatar' => 'nullable|image'
+            'avatar' => 'nullable|image',
+            'telephone' => 'nullable|string|max:20',
+            'cin' => 'nullable|string|unique:users',
+            'taille' => 'nullable|numeric|min:0.5|max:3.0',
+            'objectif' => 'nullable|in:prise de masse,perte de poids,maintien,prise de force,endurance,remise en forme,sèche,souplesse,rééducation,tonification,préparation physique,performance',
+            'sexe' => 'nullable|in:homme,femme',
+            'date_naissance' => 'nullable|date|before:today',
         ]);
+        
         $avatar = null;
         if ($request->hasFile('avatar')) {
             $avatarName = $request->file('avatar')->store('avatars', 'public');
             $avatar = $avatarName;
         }
-        $user = User::create([
+        
+        $userData = [
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'password' => bcrypt($validatedData['password']),
             'avatar' => $avatar,
-        ])->assignRole('challenger');
+        ];
+
+        // Ajouter les champs optionnels s'ils sont présents
+        $optionalFields = ['telephone', 'cin', 'taille', 'objectif', 'sexe', 'date_naissance'];
+        foreach ($optionalFields as $field) {
+            if (isset($validatedData[$field])) {
+                $userData[$field] = $validatedData[$field];
+            }
+        }
+
+        $user = User::create($userData)->assignRole('challenger');
         $token = $user->createToken('authToken')->plainTextToken;
+        
         return response()->json([
             'token' => $token,
             'user' => $user,

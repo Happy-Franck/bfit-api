@@ -200,4 +200,121 @@ class UserController extends Controller
             'coachs' => $user->coachs,
         ], 200);
     }
+
+    /**
+     * Obtenir les informations du profil de l'utilisateur connecté
+     */
+    public function getCurrentUser(Request $request)
+    {
+        $user = $request->user();
+        return response()->json([
+            'user' => $user->load('roles', 'permissions'),
+        ], 200);
+    }
+
+    /**
+     * Mettre à jour le profil de l'utilisateur connecté
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        
+        // Tableau pour stocker les données à mettre à jour
+        $dataToUpdate = [];
+        
+        // Liste des champs modifiables (sauf avatar et nouveau_poids qui sont traités séparément)
+        $updatableFields = [
+            'name' => 'string|max:255',
+            'email' => 'email|unique:users,email,' . $user->id,
+            'telephone' => 'string|max:20',
+            'cin' => 'string|unique:users,cin,' . $user->id,
+            'taille' => 'numeric|min:0.5|max:3.0',
+            'objectif' => 'in:prise de masse,perte de poids,maintien,prise de force,endurance,remise en forme,sèche,souplesse,rééducation,tonification,préparation physique,performance',
+            'sexe' => 'in:homme,femme',
+            'date_naissance' => 'date|before:today',
+        ];
+        
+        // Valider et collecter les champs présents dans la requête
+        foreach ($updatableFields as $field => $rule) {
+            if ($request->has($field) && $request->input($field) !== null) {
+                $request->validate([$field => $rule]);
+                $dataToUpdate[$field] = $request->input($field);
+            }
+        }
+        
+        // Gestion de l'upload d'avatar
+        if ($request->hasFile('avatar')) {
+            $request->validate([
+                'avatar' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
+            
+            \Log::info('Avatar upload détecté', [
+                'original_name' => $request->file('avatar')->getClientOriginalName(),
+                'size' => $request->file('avatar')->getSize(),
+                'mime_type' => $request->file('avatar')->getMimeType()
+            ]);
+            
+            // Supprimer l'ancien avatar s'il existe
+            if ($user->avatar) {
+                $oldAvatarPath = storage_path('app/public/avatars/' . $user->avatar);
+                if (file_exists($oldAvatarPath)) {
+                    unlink($oldAvatarPath);
+                    \Log::info('Ancien avatar supprimé');
+                }
+            }
+            
+            // Stocker le nouveau fichier
+            $image_name = $request->avatar->getClientOriginalName();
+            $request->avatar->storeAs('avatars', $image_name, 'public');
+            $dataToUpdate['avatar'] = $image_name;
+            
+            \Log::info('Nouvel avatar stocké', ['nom' => $image_name]);
+        }
+        
+        // Gestion de l'historique de poids
+        if ($request->has('nouveau_poids') && $request->nouveau_poids !== null) {
+            $request->validate([
+                'nouveau_poids' => 'numeric|min:20|max:300'
+            ]);
+            
+            $currentPoids = $user->poids ?? [];
+            $currentPoids[] = [
+                'date' => now()->format('Y-m-d'),
+                'valeur' => (float) $request->nouveau_poids
+            ];
+            $dataToUpdate['poids'] = $currentPoids;
+        }
+        
+        // Mettre à jour l'utilisateur si on a des données
+        if (!empty($dataToUpdate)) {
+            $user->update($dataToUpdate);
+            
+            \Log::info('Profil mis à jour', [
+                'user_id' => $user->id,
+                'updated_fields' => array_keys($dataToUpdate)
+            ]);
+            
+            return response()->json([
+                'message' => 'Profil mis à jour avec succès',
+                'user' => $user->fresh()->load('roles', 'permissions'),
+                'updated_fields' => array_keys($dataToUpdate)
+            ], 200);
+        }
+        
+        return response()->json([
+            'message' => 'Aucune donnée à mettre à jour',
+            'user' => $user->load('roles', 'permissions')
+        ], 200);
+    }
+
+    /**
+     * Obtenir l'historique de poids de l'utilisateur
+     */
+    public function getWeightHistory(Request $request)
+    {
+        $user = $request->user();
+        return response()->json([
+            'poids_history' => $user->poids ?? [],
+        ], 200);
+    }
 }

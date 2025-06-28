@@ -188,5 +188,10 @@ Route::post('/login', 'App\Http\Controllers\AuthController@login');
 Route::middleware('auth:sanctum')->group(function () {
     // Route pour la déconnexion (logout)
     Route::post('/logout', 'App\Http\Controllers\AuthController@logout');
+    
+    // Routes de gestion du profil utilisateur
+    Route::get('/profile', [UserController::class, 'getCurrentUser']);
+    Route::put('/profile', [UserController::class, 'updateProfile']);
+    Route::get('/profile/weight-history', [UserController::class, 'getWeightHistory']);
 });
 
