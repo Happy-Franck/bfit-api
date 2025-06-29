@@ -11,12 +11,33 @@ class EquipmentController extends Controller
     /**
      * Récupérer tous les équipements
      */
-    public function index()
+    public function index(Request $request)
     {
-        $equipments = Equipment::all();
-        return response()->json([
-            'equipments' => $equipments,
-        ], 200);
+        $query = Equipment::query();
+
+        // Recherche
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Tri
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+        
+        // Valider les colonnes de tri autorisées
+        $allowedSortColumns = ['id', 'name', 'description', 'created_at', 'updated_at'];
+        if (in_array($sortBy, $allowedSortColumns)) {
+            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('id', 'asc');
+        }
+
+        $equipments = $query->paginate(10);
+        return response()->json($equipments, 200);
     }
 
     /**
@@ -37,6 +58,9 @@ class EquipmentController extends Controller
      */
     public function show(Equipment $equipment)
     {
+        // Charger l'équipement avec ses trainings et leurs relations
+        $equipment->load(['trainings.categories', 'trainings.equipments']);
+        
         return response()->json([
             'equipment' => $equipment,
         ], 200);

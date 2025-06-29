@@ -90,9 +90,18 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::delete('equipment/{equipment}', [EquipmentController::class, 'destroy']);
         Route::get('equipment/{equipment}/trainings', [EquipmentController::class, 'getTrainingsByEquipment']);
 
+        //CRUD training (admin access)
+        Route::get('training', [TrainingController::class, 'index']);
+        Route::get('training/{training}', [TrainingController::class, 'show']);
+        Route::post('training', [TrainingController::class, 'store']);
+        Route::put('training/{training}', [TrainingController::class, 'update']);
+        Route::delete('training/{training}', [TrainingController::class, 'destroy']);
+
         //CRUD séance
         Route::get('seance', [SeanceController::class, 'indexSeance']);
         Route::get('seance/{seance}', [SeanceController::class, 'show']);
+        Route::post('seance', [SeanceController::class, 'storeSeance']);
+        Route::put('seance/{seance}', [SeanceController::class, 'updateSeance']);
         Route::post('users/{coach}/assign-challenger', [SeanceController::class, 'assignSeanceCoachChallenger']);
         Route::post('users/{challenger}/assign-coach', [SeanceController::class, 'assignSeanceChallengerCoach']);
         Route::delete('seance/{seance}', [SeanceController::class, 'destroySeance']);

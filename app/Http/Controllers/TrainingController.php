@@ -12,12 +12,39 @@ class TrainingController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $trainings = Training::with(['categories', 'equipments'])->get();
-        return response()->json([
-            'trainings' => $trainings,
-        ], 200);
+        $query = Training::with(['categories', 'equipments']);
+
+        // Recherche
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%")
+                  ->orWhereHas('categories', function($categoryQuery) use ($search) {
+                      $categoryQuery->where('name', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('equipments', function($equipmentQuery) use ($search) {
+                      $equipmentQuery->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Tri
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+        
+        // Valider les colonnes de tri autorisées
+        $allowedSortColumns = ['id', 'name', 'description', 'created_at', 'updated_at'];
+        if (in_array($sortBy, $allowedSortColumns)) {
+            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('id', 'asc');
+        }
+
+        $trainings = $query->paginate(10);
+        return response()->json($trainings, 200);
     } 
     public function indexChallenger()
     {
@@ -88,10 +115,39 @@ class TrainingController extends Controller
      */
     public function show(Training $training)
     {
+        // Charger toutes les relations nécessaires
+        $training->load(['categories', 'equipments']);
+        
+        // Récupérer des suggestions de trainings similaires
+        // Basé sur les catégories communes
+        $categoryIds = $training->categories->pluck('id')->toArray();
+        
+        $suggestions = Training::where('id', '!=', $training->id)
+            ->whereHas('categories', function($query) use ($categoryIds) {
+                $query->whereIn('categories.id', $categoryIds);
+            })
+            ->with(['categories', 'equipments'])
+            ->inRandomOrder()
+            ->limit(8) // 8 suggestions pour avoir plus de choix
+            ->get();
+        
+        // Si pas assez de suggestions basées sur les catégories, compléter avec des trainings aléatoires
+        if ($suggestions->count() < 8) {
+            $additionalSuggestions = Training::where('id', '!=', $training->id)
+                ->whereNotIn('id', $suggestions->pluck('id')->toArray())
+                ->with(['categories', 'equipments'])
+                ->inRandomOrder()
+                ->limit(8 - $suggestions->count())
+                ->get();
+            
+            $suggestions = $suggestions->merge($additionalSuggestions);
+        }
+
         return response()->json([
             'training' => $training,
             'categories' => $training->categories,
             'equipments' => $training->equipments,
+            'suggestions' => $suggestions,
         ], 200);
     }
     

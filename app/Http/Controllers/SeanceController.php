@@ -13,12 +13,67 @@ class SeanceController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function indexSeance()
+    public function indexSeance(Request $request)
     {
-        $seances = Seance::all();
+        $query = Seance::with(['admin', 'coach', 'challenger', 'trainings'])
+            ->withCount('trainings');
+
+        // Recherche
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('id', 'LIKE', "%{$search}%")
+                  ->orWhereHas('challenger', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'LIKE', "%{$search}%")
+                               ->orWhere('email', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('coach', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'LIKE', "%{$search}%")
+                               ->orWhere('email', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('admin', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'LIKE', "%{$search}%")
+                               ->orWhere('email', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Tri
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'desc');
+        
+        // Validation des champs de tri
+        $allowedSortFields = ['id', 'created_at', 'updated_at', 'validated', 'admin_id', 'coach_id', 'challenger_id', 'trainings_count'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'id';
+        }
+        
+        if (!in_array($sortOrder, ['asc', 'desc'])) {
+            $sortOrder = 'desc';
+        }
+
+        // Tri spécial pour trainings_count
+        if ($sortBy === 'trainings_count') {
+            $query->orderBy('trainings_count', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
+        // Pagination
+        $perPage = $request->get('per_page', 15);
+        $seances = $query->paginate($perPage);
+            
         return response()->json([
-            'seances' => $seances,
-        ], 201);
+            'seances' => $seances->items(),
+            'pagination' => [
+                'current_page' => $seances->currentPage(),
+                'last_page' => $seances->lastPage(),
+                'per_page' => $seances->perPage(),
+                'total' => $seances->total(),
+                'from' => $seances->firstItem(),
+                'to' => $seances->lastItem(),
+            ]
+        ], 200);
     }
     public function indexCoach()
     {
@@ -344,10 +399,82 @@ class SeanceController extends Controller
     }
     public function destroySeance(Seance $seance)
     {
+        // Seul l'admin qui a créé la séance peut la supprimer
+        if ($seance->admin_id !== Auth::user()->id) {
+            return response()->json([
+                'message' => "Vous n'êtes pas autorisé à supprimer cette séance."
+            ], 403);
+        }
+
+        // On ne peut supprimer que les séances encore assignées (validated = null)
+        if ($seance->validated !== null) {
+            return response()->json([
+                'message' => "Cette séance ne peut plus être supprimée car elle est en cours de traitement."
+            ], 422);
+        }
+
         $seance->trainings()->detach();
         $seance->delete();
+        
         return response()->json([
             'message' => "Vous avez bien supprimé la séance.",
+        ], 200);
+    }
+
+    /**
+     * Store a newly created resource in storage (Admin).
+     */
+    public function storeSeance(Request $request)
+    {
+        $request->validate([
+            'coach_id' => 'required|exists:users,id',
+            'challenger_id' => 'required|exists:users,id',
+        ]);
+
+        $seance = new Seance();
+        $seance->admin_id = Auth::user()->id;
+        $seance->coach_id = $request->coach_id;
+        $seance->challenger_id = $request->challenger_id;
+        $seance->validated = null; // Séance assignée par défaut
+        $seance->save();
+
+        return response()->json([
+            'message' => "La séance a bien été créée et assignée.",
+            'seance' => $seance
+        ], 201);
+    }
+
+    /**
+     * Update the specified resource in storage (Admin).
+     */
+    public function updateSeance(Request $request, Seance $seance)
+    {
+        $request->validate([
+            'coach_id' => 'nullable|exists:users,id',
+            'challenger_id' => 'required|exists:users,id',
+        ]);
+
+        // Seul l'admin qui a créé la séance peut la modifier
+        if ($seance->admin_id !== Auth::user()->id) {
+            return response()->json([
+                'message' => "Vous n'êtes pas autorisé à modifier cette séance."
+            ], 403);
+        }
+
+        // On ne peut modifier que les séances encore assignées (validated = null)
+        if ($seance->validated !== null) {
+            return response()->json([
+                'message' => "Cette séance ne peut plus être modifiée car elle est en cours de traitement."
+            ], 422);
+        }
+
+        $seance->coach_id = $request->coach_id;
+        $seance->challenger_id = $request->challenger_id;
+        $seance->save();
+
+        return response()->json([
+            'message' => "La séance a bien été mise à jour.",
+            'seance' => $seance
         ], 200);
     }
 }
