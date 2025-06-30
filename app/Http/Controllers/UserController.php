@@ -50,24 +50,153 @@ class UserController extends Controller
             'challengerSeances as seances_as_challenger_count'
         ]);
 
-        // Déterminer les séances selon le rôle
-        $seances = collect();
+        // Préparer les données des séances selon le rôle
+        $seancesData = [];
+        
         if($user->hasRole('coach')){
-            $seances = $user->coachSeances;
+            // Pour un coach, on récupère ses séances avec les challengers coachés
+            $seances = $user->coachSeances()->with([
+                'challenger:id,name,avatar', 
+                'trainings.categories:id,name',
+                'trainings.equipments:id,name'
+            ])->get();
+            
+            foreach($seances as $seance) {
+                $musclesTravailles = $seance->trainings
+                    ->flatMap(function($training) {
+                        return $training->categories->pluck('name');
+                    })
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->toArray();
+                    
+                $seancesData[] = [
+                    'id' => $seance->id,
+                    'date_seance' => $seance->created_at,
+                    'muscles_travailles' => $musclesTravailles,
+                    'nombre_exercices' => $seance->trainings->count(),
+                    'challenger' => [
+                        'id' => $seance->challenger?->id,
+                        'name' => $seance->challenger?->name,
+                        'avatar' => $seance->challenger?->avatar
+                    ],
+                    'state' => $seance->validated,
+                    'type' => 'coach' // Indique le point de vue
+                ];
+            }
         }
+        
         if($user->hasRole('challenger')){
-            $seances = $user->challengerSeances;
+            // Pour un challenger, on récupère ses séances avec les coachs
+            $seances = $user->challengerSeances()->with([
+                'coach:id,name,avatar',
+                'trainings.categories:id,name',
+                'trainings.equipments:id,name'
+            ])->get();
+            
+            foreach($seances as $seance) {
+                $musclesTravailles = $seance->trainings
+                    ->flatMap(function($training) {
+                        return $training->categories->pluck('name');
+                    })
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->toArray();
+                    
+                $seancesData[] = [
+                    'id' => $seance->id,
+                    'date_seance' => $seance->created_at,
+                    'muscles_travailles' => $musclesTravailles,
+                    'nombre_exercices' => $seance->trainings->count(),
+                    'coach' => [
+                        'id' => $seance->coach?->id,
+                        'name' => $seance->coach?->name,
+                        'avatar' => $seance->coach?->avatar
+                    ],
+                    'state' => $seance->validated,
+                    'type' => 'challenger' // Indique le point de vue
+                ];
+            }
         }
+        
         if($user->hasRole('administrateur')) {
-            $seances = $user->seances ?? collect();
+            // Pour un administrateur, on peut récupérer toutes ses séances
+            $coachSeances = $user->coachSeances()->with([
+                'challenger:id,name,avatar',
+                'trainings.categories:id,name'
+            ])->get();
+            
+            $challengerSeances = $user->challengerSeances()->with([
+                'coach:id,name,avatar',
+                'trainings.categories:id,name'
+            ])->get();
+            
+            // Traiter les séances en tant que coach
+            foreach($coachSeances as $seance) {
+                $musclesTravailles = $seance->trainings
+                    ->flatMap(function($training) {
+                        return $training->categories->pluck('name');
+                    })
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->toArray();
+                    
+                $seancesData[] = [
+                    'id' => $seance->id,
+                    'date_seance' => $seance->created_at,
+                    'muscles_travailles' => $musclesTravailles,
+                    'nombre_exercices' => $seance->trainings->count(),
+                    'challenger' => [
+                        'id' => $seance->challenger?->id,
+                        'name' => $seance->challenger?->name,
+                        'avatar' => $seance->challenger?->avatar
+                    ],
+                    'state' => $seance->validated,
+                    'type' => 'coach'
+                ];
+            }
+            
+            // Traiter les séances en tant que challenger
+            foreach($challengerSeances as $seance) {
+                $musclesTravailles = $seance->trainings
+                    ->flatMap(function($training) {
+                        return $training->categories->pluck('name');
+                    })
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->toArray();
+                    
+                $seancesData[] = [
+                    'id' => $seance->id,
+                    'date_seance' => $seance->created_at,
+                    'muscles_travailles' => $musclesTravailles,
+                    'nombre_exercices' => $seance->trainings->count(),
+                    'coach' => [
+                        'id' => $seance->coach?->id,
+                        'name' => $seance->coach?->name,
+                        'avatar' => $seance->coach?->avatar
+                    ],
+                    'state' => $seance->validated,
+                    'type' => 'challenger'
+                ];
+            }
         }
+        
+        // Trier les séances par date décroissante
+        usort($seancesData, function($a, $b) {
+            return strtotime($b['date_seance']) - strtotime($a['date_seance']);
+        });
         
         return response()->json([
             'user' => $user,
             'roles' => $user->roles,
             'permissions' => $user->permissions,
             'challengers' => $user->challengers,
-            'seances' => $seances,
+            'seances' => $seancesData, // Nouvelles données structurées des séances
             'coachs' => $user->coachs,
         ], 200);
     }
