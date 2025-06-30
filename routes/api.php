@@ -202,5 +202,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'getCurrentUser']);
     Route::put('/profile', [UserController::class, 'updateProfile']);
     Route::get('/profile/weight-history', [UserController::class, 'getWeightHistory']);
+    
+    // Route pour voir un utilisateur spécifique
+    Route::get('/user/{user}', [UserController::class, 'show']);
 });
 

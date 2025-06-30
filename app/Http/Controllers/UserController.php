@@ -14,7 +14,13 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::all()->load('roles');
+        $users = User::with(['roles'])
+            ->withCount([
+                'coachSeances as seances_as_coach_count',
+                'challengerSeances as seances_as_challenger_count'
+            ])
+            ->get();
+            
         return response()->json([
             'users' => $users,
         ], 201);
@@ -36,6 +42,16 @@ class UserController extends Controller
 
     public function show(User $user)
     {
+        $user->load(['roles', 'permissions']);
+        
+        // Charger les comptes de séances
+        $user->loadCount([
+            'coachSeances as seances_as_coach_count',
+            'challengerSeances as seances_as_challenger_count'
+        ]);
+
+        // Déterminer les séances selon le rôle
+        $seances = collect();
         if($user->hasRole('coach')){
             $seances = $user->coachSeances;
         }
@@ -43,8 +59,9 @@ class UserController extends Controller
             $seances = $user->challengerSeances;
         }
         if($user->hasRole('administrateur')) {
-            $seances = $user->seances;
+            $seances = $user->seances ?? collect();
         }
+        
         return response()->json([
             'user' => $user,
             'roles' => $user->roles,
