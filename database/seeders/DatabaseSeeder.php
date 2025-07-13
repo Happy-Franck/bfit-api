@@ -20,7 +20,15 @@ class DatabaseSeeder extends Seeder
         // ]);
         $this->call(RolePermissionSeeder::class);
         $this->call(UserSeeder::class);
+        
+        // Seeders e-commerce - ProductTypeSeeder doit être appelé avant ProduitSeeder
+        $this->call(ProductTypeSeeder::class);
+        
+        // NOUVEAU : Système flexible sans contraintes fixes
+        $this->call(FlexibleProductSystemSeeder::class);
+        
         $this->call(ProduitSeeder::class);
+        
         $this->call(CategorySeeder::class);
         $this->call(EquipmentSeeder::class);
         $this->call(TrainingSeeder::class);

@@ -11,6 +11,12 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SeanceController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ProductTypeController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ProductAttributeController;
+use App\Http\Controllers\ProductTypeAttributeController;
+use App\Http\Controllers\ProductVariantController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +47,31 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::get('produit/{produit}', [ProduitController::class, 'show']);
         Route::put('produit/{produit}', [ProduitController::class, 'update']);
         Route::delete('produit/{produit}', [ProduitController::class, 'destroy']);
+        Route::patch('produit/{produit}/toggle-status', [ProduitController::class, 'toggleStatus']);
+
+        // CRUD variantes de produits
+        Route::get('produit/{produit}/variants', [ProductVariantController::class, 'index']);
+        Route::post('produit/{produit}/variants', [ProductVariantController::class, 'store']);
+        Route::get('produit/{produit}/variants/{variant}', [ProductVariantController::class, 'show']);
+        Route::put('produit/{produit}/variants/{variant}', [ProductVariantController::class, 'update']);
+        Route::delete('produit/{produit}/variants/{variant}', [ProductVariantController::class, 'destroy']);
+        Route::patch('produit/{produit}/variants/{variant}/stock', [ProductVariantController::class, 'updateStock']);
+        Route::patch('produit/{produit}/variants/{variant}/toggle-status', [ProductVariantController::class, 'toggleStatus']);
+
+        // CRUD type de produit
+        Route::get('product-type', [ProductTypeController::class, 'index']);
+        Route::post('product-type', [ProductTypeController::class, 'store']);
+        Route::get('product-type/{productType}', [ProductTypeController::class, 'show']);
+        Route::put('product-type/{productType}', [ProductTypeController::class, 'update']);
+        Route::delete('product-type/{productType}', [ProductTypeController::class, 'destroy']);
+        Route::patch('product-type/{productType}/toggle-status', [ProductTypeController::class, 'toggleStatus']);
+        Route::get('product-type/{productType}/attributes', [ProductTypeController::class, 'getAttributes']);
+
+        // Gestion des commandes (admin)
+        Route::get('orders', [OrderController::class, 'adminIndex']);
+        Route::get('orders/{order}', [OrderController::class, 'adminShow']);
+        Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus']);
+        Route::patch('orders/{order}/mark-paid', [OrderController::class, 'markAsPaid']);
 
         // CRUD role
         Route::get('role',[RoleController::class, 'index']);
@@ -187,6 +218,42 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
     }
 );
 
+//---------------------------------- E-COMMERCE PUBLIC ROUTES ----------------------------------//
+// Routes publiques pour l'e-commerce (consultables sans authentification)
+Route::prefix('shop')->group(function () {
+    // Types de produits
+    Route::get('product-types', [ProductTypeController::class, 'index']);
+    Route::get('product-types/{productType}', [ProductTypeController::class, 'show']);
+    
+    // Produits
+    Route::get('products', [ProduitController::class, 'index']);
+    Route::get('products/{produit}', [ProduitController::class, 'show']);
+});
+
+//---------------------------------- E-COMMERCE AUTHENTICATED ROUTES ----------------------------------//
+// Routes protégées pour l'e-commerce (nécessitent une authentification)
+Route::middleware('auth:sanctum')->prefix('shop')->group(function () {
+    
+    // Gestion du panier
+    Route::get('cart', [CartController::class, 'index']);
+    Route::post('cart', [CartController::class, 'store']);
+    Route::put('cart/{cart}', [CartController::class, 'update']);
+    Route::delete('cart/{cart}', [CartController::class, 'destroy']);
+    Route::delete('cart', [CartController::class, 'clear']);
+    Route::get('cart/count', [CartController::class, 'count']);
+    
+    // Gestion des commandes
+    Route::get('orders', [OrderController::class, 'index']);
+    Route::post('orders', [OrderController::class, 'store']);
+    Route::get('orders/{order}', [OrderController::class, 'show']);
+    Route::patch('orders/{order}/cancel', [OrderController::class, 'cancel']);
+    
+    // Avis sur les produits (accessible à tous les utilisateurs connectés)
+    Route::post('products/{produit}/reviews', [AdviceController::class, 'store']);
+    Route::put('products/{produit}/reviews/{advice}', [AdviceController::class, 'update']);
+    Route::delete('products/{produit}/reviews/{advice}', [AdviceController::class, 'destroy']);
+});
+
 //---------------------------------- REGISTER ----------------------------------//
 Route::post('/register', 'App\Http\Controllers\AuthController@register');
 
@@ -198,12 +265,30 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route pour la déconnexion (logout)
     Route::post('/logout', 'App\Http\Controllers\AuthController@logout');
     
-    // Routes de gestion du profil utilisateur
-    Route::get('/profile', [UserController::class, 'getCurrentUser']);
+    // Profile management (accessible à tous les utilisateurs connectés)
+    Route::get('/profile', [UserController::class, 'profile']);
     Route::put('/profile', [UserController::class, 'updateProfile']);
     Route::get('/profile/weight-history', [UserController::class, 'getWeightHistory']);
-    
-    // Route pour voir un utilisateur spécifique
-    Route::get('/user/{user}', [UserController::class, 'show']);
 });
+
+// Product attributes routes
+Route::prefix('product-attributes')->group(function () {
+    Route::get('/', [ProductAttributeController::class, 'index']);
+    Route::get('/all-with-values', [ProductAttributeController::class, 'getAllWithValues']);
+    Route::post('/', [ProductAttributeController::class, 'store']);
+    Route::get('/{id}', [ProductAttributeController::class, 'show']);
+    Route::put('/{id}', [ProductAttributeController::class, 'update']);
+    Route::delete('/{id}', [ProductAttributeController::class, 'destroy']);
+    
+    // Gestion des valeurs d'attributs
+    Route::post('/{attributeId}/values', [ProductAttributeController::class, 'storeValue']);
+    Route::put('/{attributeId}/values/{valueId}', [ProductAttributeController::class, 'updateValue']);
+    Route::delete('/{attributeId}/values/{valueId}', [ProductAttributeController::class, 'destroyValue']);
+});
+
+// Product type attributes routes
+Route::get('product-types/{productTypeId}/attributes', [ProductTypeAttributeController::class, 'getAttributesByProductType']);
+Route::post('product-types/{productTypeId}/attributes', [ProductTypeAttributeController::class, 'attachAttribute']);
+Route::delete('product-types/{productTypeId}/attributes/{attributeId}', [ProductTypeAttributeController::class, 'detachAttribute']);
+Route::put('product-types/{productTypeId}/attributes/{attributeId}', [ProductTypeAttributeController::class, 'updateAttribute']);
 

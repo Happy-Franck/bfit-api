@@ -359,6 +359,22 @@ class UserController extends Controller
     }
 
     /**
+     * Obtenir le profil complet de l'utilisateur connecté
+     */
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+        $user->load('roles', 'permissions');
+        
+        return response()->json([
+            'user' => $user,
+            'roles' => $user->roles,
+            'permissions' => $user->permissions,
+            'poids_history' => $user->poids ?? [],
+        ], 200);
+    }
+
+    /**
      * Mettre à jour le profil de l'utilisateur connecté
      */
     public function updateProfile(Request $request)

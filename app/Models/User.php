@@ -66,6 +66,18 @@ class User extends Authenticatable
         return $this->hasMany(Advice::class);
     }
 
+    //panier de l'utilisateur $user->cartItems
+    public function cartItems()
+    {
+        return $this->hasMany(Cart::class);
+    }
+
+    //commandes de l'utilisateur $user->orders
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
     //many to many entre coach et challengers
     //récupérer les challengers coachés
     //$coach = User::find(1);
@@ -124,5 +136,51 @@ class User extends Authenticatable
     public function challengerSeances()
     {
         return $this->hasMany(Seance::class, 'challenger_id');
+    }
+
+    // Méthodes pour le panier et les commandes
+    
+    // Obtenir le total du panier
+    public function getCartTotalAttribute()
+    {
+        return $this->cartItems->sum(function($item) {
+            return $item->quantity * $item->price;
+        });
+    }
+
+    // Obtenir le nombre d'articles dans le panier
+    public function getCartItemsCountAttribute()
+    {
+        return $this->cartItems->sum('quantity');
+    }
+
+    // Vider le panier
+    public function clearCart()
+    {
+        return $this->cartItems()->delete();
+    }
+
+    // Ajouter un produit au panier
+    public function addToCart(Produit $produit, $quantity = 1)
+    {
+        $existingItem = $this->cartItems()->where('produit_id', $produit->id)->first();
+        
+        if ($existingItem) {
+            $existingItem->quantity += $quantity;
+            $existingItem->save();
+            return $existingItem;
+        }
+        
+        return $this->cartItems()->create([
+            'produit_id' => $produit->id,
+            'quantity' => $quantity,
+            'price' => $produit->price
+        ]);
+    }
+
+    // Supprimer un produit du panier
+    public function removeFromCart(Produit $produit)
+    {
+        return $this->cartItems()->where('produit_id', $produit->id)->delete();
     }
 }
