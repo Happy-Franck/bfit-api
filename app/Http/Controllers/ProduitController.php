@@ -513,51 +513,285 @@ class ProduitController extends Controller
      */
     public function update(Request $request, Produit $produit)
     {
+        // Décoder les chaînes JSON si nécessaire
+        $attributes = $request->attributes;
+        if (is_string($attributes)) {
+            $decoded = json_decode($attributes, true);
+            $attributes = (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? $decoded : [];
+        } elseif (!is_array($attributes)) {
+            $attributes = [];
+        }
+        
+        $variants = $request->variants;
+        if (is_string($variants)) {
+            $decoded = json_decode($variants, true);
+            $variants = (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? $decoded : [];
+        } elseif (!is_array($variants)) {
+            $variants = [];
+        }
+
+        // Déterminer si c'est un produit simple ou avec variantes
+        $hasVariants = !empty($variants) && is_array($variants) && count($variants) > 0;
+
         $rules = [
             'name' => 'required|string|max:255',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'description' => 'required|string',
-            'poid' => 'nullable|numeric|min:0',
-            'price' => 'required|numeric|min:0',
             'product_type_id' => 'required|exists:product_types,id',
-            'stock_quantity' => 'required|integer|min:0',
-            'is_active' => 'nullable|in:true,false,1,0'
+            'is_active' => 'nullable|in:true,false,1,0',
         ];
 
-        $this->validate($request, $rules);
-
-        // Convertir is_active en booléen
-        $isActive = $request->is_active;
-        if ($isActive === 'true' || $isActive === '1') {
-            $isActive = true;
-        } elseif ($isActive === 'false' || $isActive === '0') {
-            $isActive = false;
+        // Règles conditionnelles selon le type de produit
+        if ($hasVariants) {
+            // Produit avec variantes : poids et stock gérés par les variantes
+            $rules['poid'] = 'nullable|numeric|min:0';
+            $rules['price'] = 'required|numeric|min:0'; // Prix de base
+            $rules['stock_quantity'] = 'nullable|integer|min:0'; // Sera ignoré, calculé depuis les variantes
+            
+            // Règles pour les variantes
+            $rules['variants'] = 'required|array|min:1';
+            $rules['variants.*.sku'] = 'required|string|max:255';
+            $rules['variants.*.name'] = 'nullable|string|max:255';
+            $rules['variants.*.price'] = 'required|numeric|min:0';
+            $rules['variants.*.stock_quantity'] = 'required|integer|min:0';
+            $rules['variants.*.barcode'] = 'nullable|string|max:255';
+            $rules['variants.*.is_active'] = 'nullable|boolean';
+            $rules['variants.*.attributes'] = 'required|array';
+            $rules['variants.*.attributes.*'] = 'exists:product_attribute_values,id';
+            
+            // Règles pour les attributs
+            $rules['attributes'] = 'nullable|array';
+            $rules['attributes.*'] = 'exists:product_attributes,id';
         } else {
-            $isActive = $produit->is_active;
+            // Produit simple : poids et stock requis
+            $rules['poid'] = 'required|numeric|min:0';
+            $rules['price'] = 'required|numeric|min:0';
+            $rules['stock_quantity'] = 'required|integer|min:0';
         }
 
-        $data = [
-            'name' => $request->name,
-            'description' => $request->description,
-            'poid' => $request->poid ?? $produit->poid,
-            'price' => $request->price,
-            'product_type_id' => $request->product_type_id,
-            'stock_quantity' => $request->stock_quantity,
-            'is_active' => $isActive
-        ];
-
-        if ($request->hasFile('image')) {
-            $filename = $request->image->getClientOriginalName();
-            $request->image->storeAs('produits', $filename, 'public');
-            $data['image'] = $filename;
+        // Créer un tableau de données modifié pour la validation
+        $validationData = $request->all();
+        $validationData['attributes'] = $attributes;
+        $validationData['variants'] = $variants;
+        
+        // Pour l'édition, on doit permettre aux SKU existants de rester inchangés
+        if ($hasVariants) {
+            foreach ($variants as $index => $variantData) {
+                if (isset($variantData['id'])) {
+                    // Variante existante : permettre le même SKU
+                    $rules["variants.{$index}.sku"] = 'required|string|max:255|unique:product_variants,sku,' . $variantData['id'];
+                }
+            }
+        }
+        
+        // Validation avec les données modifiées
+        $validator = \Illuminate\Support\Facades\Validator::make($validationData, $rules);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Erreurs de validation',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        $produit->update($data);
+        try {
+            DB::beginTransaction();
 
-        return response()->json([
-            'message' => "Le produit a bien été modifié.",
-            'produit' => $produit->load('productType')
-        ], 200);
+            // Convertir is_active en booléen
+            $isActive = $request->is_active;
+            if ($isActive === 'true' || $isActive === '1') {
+                $isActive = true;
+            } elseif ($isActive === 'false' || $isActive === '0') {
+                $isActive = false;
+            } else {
+                $isActive = $produit->is_active;
+            }
+
+            $data = [
+                'name' => $request->name,
+                'description' => $request->description,
+                'poid' => $request->poid ?? $produit->poid,
+                'price' => $request->price,
+                'product_type_id' => $request->product_type_id,
+                'is_active' => $isActive,
+            ];
+
+            // Gestion du stock selon le type de produit
+            if ($hasVariants) {
+                // Pour les produits avec variantes, calculer le stock total
+                $totalStock = 0;
+                foreach ($variants as $variantData) {
+                    $totalStock += (int)$variantData['stock_quantity'];
+                }
+                $data['stock_quantity'] = $totalStock;
+            } else {
+                // Pour les produits simples, utiliser le stock fourni
+                $data['stock_quantity'] = $request->stock_quantity;
+            }
+
+            // Gestion de l'image principale
+            if ($request->hasFile('image')) {
+                $filename = $request->image->getClientOriginalName();
+                $request->image->storeAs('produits', $filename, 'public');
+                $data['image'] = $filename;
+            }
+
+            // Mettre à jour le produit
+            $produit->update($data);
+
+            // Gestion des attributs (seulement si le produit a des variantes)
+            if ($hasVariants && !empty($attributes) && is_array($attributes)) {
+                // Supprimer les anciennes relations d'attributs
+                $produit->attributes()->detach();
+                
+                // Ajouter les nouvelles relations
+                $attributesData = [];
+                foreach ($attributes as $index => $attributeId) {
+                    $attributesData[$attributeId] = [
+                        'is_required' => true,
+                        'sort_order' => $index,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+                }
+                $produit->attributes()->attach($attributesData);
+            } else {
+                // Si le produit n'a plus de variantes, supprimer tous les attributs
+                $produit->attributes()->detach();
+            }
+
+            // Gestion des variantes
+            if ($hasVariants) {
+                // Récupérer les IDs des variantes existantes
+                $existingVariantIds = $produit->variants()->pluck('id')->toArray();
+                $updatedVariantIds = [];
+
+                // Debug: afficher tous les fichiers reçus
+                \Log::info("=== DEBUG MISE À JOUR IMAGES VARIANTES ===");
+                \Log::info("Fichiers reçus dans la requête:", array_keys($request->allFiles()));
+                
+                foreach ($variants as $index => $variantData) {
+                    if (isset($variantData['id']) && $variantData['id']) {
+                        // Variante existante : mise à jour
+                        $variant = $produit->variants()->find($variantData['id']);
+                        if ($variant) {
+                            $variant->update([
+                                'sku' => $variantData['sku'],
+                                'name' => $variantData['name'] ?? null,
+                                'price' => $variantData['price'],
+                                'stock_quantity' => $variantData['stock_quantity'],
+                                'barcode' => $variantData['barcode'] ?? null,
+                                'is_active' => $variantData['is_active'] ?? true,
+                            ]);
+                            
+                            $updatedVariantIds[] = $variant->id;
+                        }
+                    } else {
+                        // Nouvelle variante : création
+                        $variant = $produit->variants()->create([
+                            'sku' => $variantData['sku'],
+                            'name' => $variantData['name'] ?? null,
+                            'price' => $variantData['price'],
+                            'stock_quantity' => $variantData['stock_quantity'],
+                            'barcode' => $variantData['barcode'] ?? null,
+                            'is_active' => $variantData['is_active'] ?? true,
+                            'track_inventory' => true,
+                        ]);
+                        
+                        $updatedVariantIds[] = $variant->id;
+                    }
+
+                    // Gestion de l'image de la variante (nouvelle ou mise à jour)
+                    $imageFound = false;
+                    \Log::info("Recherche d'image pour la variante {$index}");
+                    
+                    // Vérifier avec underscore (format réel envoyé par le frontend)
+                    if ($request->hasFile("variant_images_{$index}")) {
+                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images_{$index}");
+                        $variantImage = $request->file("variant_images_{$index}");
+                        $originalName = $variantImage->getClientOriginalName();
+                        $extension = $variantImage->getClientOriginalExtension();
+                        $fileName = pathinfo($originalName, PATHINFO_FILENAME);
+                        
+                        // Créer un nom de fichier unique pour éviter les conflits
+                        $variantImageName = $fileName . '_' . time() . '_' . uniqid() . '.' . $extension;
+                        
+                        // Stocker l'image dans le dossier variants
+                        $variantImage->storeAs('variants', $variantImageName, 'public');
+                        
+                        // Mettre à jour la variante avec le nom de l'image
+                        $variant->update(['image' => $variantImageName]);
+                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
+                        $imageFound = true;
+                    }
+                    // Fallback: vérifier aussi avec le point (au cas où)
+                    elseif ($request->hasFile("variant_images.{$index}")) {
+                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images.{$index}");
+                        $variantImage = $request->file("variant_images.{$index}");
+                        $originalName = $variantImage->getClientOriginalName();
+                        $extension = $variantImage->getClientOriginalExtension();
+                        $fileName = pathinfo($originalName, PATHINFO_FILENAME);
+                        
+                        // Créer un nom de fichier unique pour éviter les conflits
+                        $variantImageName = $fileName . '_' . time() . '_' . uniqid() . '.' . $extension;
+                        
+                        // Stocker l'image dans le dossier variants
+                        $variantImage->storeAs('variants', $variantImageName, 'public');
+                        
+                        // Mettre à jour la variante avec le nom de l'image
+                        $variant->update(['image' => $variantImageName]);
+                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
+                        $imageFound = true;
+                    }
+                    
+                    if (!$imageFound) {
+                        \Log::info("Aucune nouvelle image pour la variante {$index}");
+                    }
+
+                    // Mettre à jour les valeurs d'attributs de la variante
+                    $variant->attributeValues()->detach();
+                    if (!empty($variantData['attributes'])) {
+                        $attributeValues = [];
+                        foreach ($variantData['attributes'] as $attributeId => $valueId) {
+                            $attributeValues[] = $valueId;
+                        }
+                        $variant->attributeValues()->attach($attributeValues);
+                    }
+                }
+
+                // Supprimer les variantes qui ne sont plus présentes
+                $variantsToDelete = array_diff($existingVariantIds, $updatedVariantIds);
+                if (!empty($variantsToDelete)) {
+                    $produit->variants()->whereIn('id', $variantsToDelete)->delete();
+                }
+            } else {
+                // Si le produit n'a plus de variantes, supprimer toutes les variantes existantes
+                $produit->variants()->delete();
+            }
+
+            DB::commit();
+
+            $responseMessage = $hasVariants 
+                ? "Le produit avec variantes a bien été modifié. Stock total : {$data['stock_quantity']} unités." 
+                : 'Le produit simple a bien été modifié.';
+
+            return response()->json([
+                'message' => $responseMessage,
+                'produit' => $produit->load(['productType', 'variants.attributeValues.productAttribute', 'attributes']),
+                'has_variants' => $hasVariants,
+                'variants_count' => $hasVariants ? count($variants) : 0,
+                'total_stock' => $data['stock_quantity']
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'error' => 'Erreur lors de la modification du produit',
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
     }
 
     /**
