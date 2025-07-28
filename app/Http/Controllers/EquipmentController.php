@@ -9,9 +9,43 @@ use Illuminate\Http\Request;
 class EquipmentController extends Controller
 {
     /**
-     * Récupérer tous les équipements
+     * Récupérer tous les équipements (pour coaches et challengers)
      */
     public function index(Request $request)
+    {
+        $query = Equipment::query();
+
+        // Recherche
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Tri
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+        
+        // Valider les colonnes de tri autorisées
+        $allowedSortColumns = ['id', 'name', 'description', 'created_at', 'updated_at'];
+        if (in_array($sortBy, $allowedSortColumns)) {
+            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('id', 'asc');
+        }
+
+        $equipments = $query->get();
+        return response()->json([
+            'equipments' => $equipments,
+        ], 200);
+    }
+
+    /**
+     * Récupérer tous les équipements avec pagination (pour administrateurs)
+     */
+    public function indexAdmin(Request $request)
     {
         $query = Equipment::query();
 

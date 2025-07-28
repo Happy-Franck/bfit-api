@@ -115,7 +115,7 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::delete('category/{category}', [CategoryController::class, 'destroy']);
 
         //CRUD equipment
-        Route::get('equipment', [EquipmentController::class, 'index']);
+        Route::get('equipment', [EquipmentController::class, 'indexAdmin']);
         Route::get('equipment/{equipment}', [EquipmentController::class, 'show']);
         Route::post('equipment', [EquipmentController::class, 'store']);
         Route::put('equipment/{equipment}', [EquipmentController::class, 'update']);
@@ -123,7 +123,7 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::get('equipment/{equipment}/trainings', [EquipmentController::class, 'getTrainingsByEquipment']);
 
         //CRUD training (admin access)
-        Route::get('training', [TrainingController::class, 'index']);
+        Route::get('training', [TrainingController::class, 'indexAdmin']);
         Route::get('training/{training}', [TrainingController::class, 'show']);
         Route::post('training', [TrainingController::class, 'store']);
         Route::put('training/{training}', [TrainingController::class, 'update']);

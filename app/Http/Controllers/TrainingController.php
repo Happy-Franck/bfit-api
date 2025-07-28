@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 class TrainingController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the resource (pour coaches et challengers)
      */
     public function index(Request $request)
     {
@@ -43,9 +43,49 @@ class TrainingController extends Controller
             $query->orderBy('id', 'asc');
         }
 
+        $trainings = $query->get();
+        return response()->json([
+            'trainings' => $trainings,
+        ], 200);
+    }
+
+    /**
+     * Display a listing of the resource with pagination (pour administrateurs)
+     */
+    public function indexAdmin(Request $request)
+    {
+        $query = Training::with(['categories', 'equipments']);
+
+        // Recherche
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%")
+                  ->orWhereHas('categories', function($categoryQuery) use ($search) {
+                      $categoryQuery->where('name', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('equipments', function($equipmentQuery) use ($search) {
+                      $equipmentQuery->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Tri
+        $sortBy = $request->get('sort_by', 'id');
+        $sortOrder = $request->get('sort_order', 'asc');
+        
+        // Valider les colonnes de tri autorisées
+        $allowedSortColumns = ['id', 'name', 'description', 'created_at', 'updated_at'];
+        if (in_array($sortBy, $allowedSortColumns)) {
+            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('id', 'asc');
+        }
+
         $trainings = $query->paginate(10);
         return response()->json($trainings, 200);
-    } 
+    }
     public function indexChallenger()
     {
         $trainings = Training::with(['categories', 'equipments'])->get();
