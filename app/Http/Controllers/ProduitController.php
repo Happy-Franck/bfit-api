@@ -574,16 +574,6 @@ class ProduitController extends Controller
         $validationData['attributes'] = $attributes;
         $validationData['variants'] = $variants;
         
-        // Pour l'édition, on doit permettre aux SKU existants de rester inchangés
-        if ($hasVariants) {
-            foreach ($variants as $index => $variantData) {
-                if (isset($variantData['id'])) {
-                    // Variante existante : permettre le même SKU
-                    $rules["variants.{$index}.sku"] = 'required|string|max:255|unique:product_variants,sku,' . $variantData['id'];
-                }
-            }
-        }
-        
         // Validation avec les données modifiées
         $validator = \Illuminate\Support\Facades\Validator::make($validationData, $rules);
         
@@ -604,13 +594,13 @@ class ProduitController extends Controller
             } elseif ($isActive === 'false' || $isActive === '0') {
                 $isActive = false;
             } else {
-                $isActive = $produit->is_active;
+                $isActive = true;
             }
 
             $data = [
                 'name' => $request->name,
                 'description' => $request->description,
-                'poid' => $request->poid ?? $produit->poid,
+                'poid' => $request->poid ?? 0,
                 'price' => $request->price,
                 'product_type_id' => $request->product_type_id,
                 'is_active' => $isActive,
@@ -629,7 +619,7 @@ class ProduitController extends Controller
                 $data['stock_quantity'] = $request->stock_quantity;
             }
 
-            // Gestion de l'image principale
+            // Gestion de l'image
             if ($request->hasFile('image')) {
                 $filename = $request->image->getClientOriginalName();
                 $request->image->storeAs('produits', $filename, 'public');
@@ -641,10 +631,10 @@ class ProduitController extends Controller
 
             // Gestion des attributs (seulement si le produit a des variantes)
             if ($hasVariants && !empty($attributes) && is_array($attributes)) {
-                // Supprimer les anciennes relations d'attributs
+                // Supprimer les anciens attributs
                 $produit->attributes()->detach();
                 
-                // Ajouter les nouvelles relations
+                // Ajouter les nouveaux attributs
                 $attributesData = [];
                 foreach ($attributes as $index => $attributeId) {
                     $attributesData[$attributeId] = [
@@ -655,53 +645,51 @@ class ProduitController extends Controller
                     ];
                 }
                 $produit->attributes()->attach($attributesData);
-            } else {
-                // Si le produit n'a plus de variantes, supprimer tous les attributs
-                $produit->attributes()->detach();
             }
 
             // Gestion des variantes
             if ($hasVariants) {
-                // Récupérer les IDs des variantes existantes
-                $existingVariantIds = $produit->variants()->pluck('id')->toArray();
-                $updatedVariantIds = [];
-
                 // Debug: afficher tous les fichiers reçus
-                \Log::info("=== DEBUG MISE À JOUR IMAGES VARIANTES ===");
+                \Log::info("=== DEBUG IMAGES VARIANTES UPDATE ===");
                 \Log::info("Fichiers reçus dans la requête:", array_keys($request->allFiles()));
+                \Log::info("Toutes les clés de la requête:", array_keys($request->all()));
                 
-                foreach ($variants as $index => $variantData) {
-                    if (isset($variantData['id']) && $variantData['id']) {
-                        // Variante existante : mise à jour
-                        $variant = $produit->variants()->find($variantData['id']);
-                        if ($variant) {
-                            $variant->update([
-                                'sku' => $variantData['sku'],
-                                'name' => $variantData['name'] ?? null,
-                                'price' => $variantData['price'],
-                                'stock_quantity' => $variantData['stock_quantity'],
-                                'barcode' => $variantData['barcode'] ?? null,
-                                'is_active' => $variantData['is_active'] ?? true,
+                // Debug: afficher le contenu détaillé des fichiers
+                foreach ($request->allFiles() as $key => $file) {
+                    if (is_array($file)) {
+                        foreach ($file as $subKey => $subFile) {
+                            \Log::info("Fichier trouvé: {$key}[{$subKey}]", [
+                                'original_name' => $subFile->getClientOriginalName(),
+                                'size' => $subFile->getSize(),
+                                'mime_type' => $subFile->getMimeType()
                             ]);
-                            
-                            $updatedVariantIds[] = $variant->id;
                         }
                     } else {
-                        // Nouvelle variante : création
-                        $variant = $produit->variants()->create([
-                            'sku' => $variantData['sku'],
-                            'name' => $variantData['name'] ?? null,
-                            'price' => $variantData['price'],
-                            'stock_quantity' => $variantData['stock_quantity'],
-                            'barcode' => $variantData['barcode'] ?? null,
-                            'is_active' => $variantData['is_active'] ?? true,
-                            'track_inventory' => true,
+                        \Log::info("Fichier trouvé: {$key}", [
+                            'original_name' => $file->getClientOriginalName(),
+                            'size' => $file->getSize(),
+                            'mime_type' => $file->getMimeType()
                         ]);
-                        
-                        $updatedVariantIds[] = $variant->id;
                     }
+                }
+                
+                // Supprimer toutes les variantes existantes
+                $produit->variants()->delete();
+                
+                // Créer les nouvelles variantes
+                foreach ($variants as $index => $variantData) {
+                    // Créer la variante
+                    $variant = $produit->variants()->create([
+                        'sku' => $variantData['sku'],
+                        'name' => $variantData['name'] ?? null,
+                        'price' => $variantData['price'],
+                        'stock_quantity' => $variantData['stock_quantity'],
+                        'barcode' => $variantData['barcode'] ?? null,
+                        'is_active' => $variantData['is_active'] ?? true,
+                        'track_inventory' => true,
+                    ]);
 
-                    // Gestion de l'image de la variante (nouvelle ou mise à jour)
+                    // Gestion de l'image de la variante
                     $imageFound = false;
                     \Log::info("Recherche d'image pour la variante {$index}");
                     
@@ -745,11 +733,10 @@ class ProduitController extends Controller
                     }
                     
                     if (!$imageFound) {
-                        \Log::info("Aucune nouvelle image pour la variante {$index}");
+                        \Log::info("Aucune image trouvée pour la variante {$index}");
                     }
 
-                    // Mettre à jour les valeurs d'attributs de la variante
-                    $variant->attributeValues()->detach();
+                    // Associer les valeurs d'attributs à la variante
                     if (!empty($variantData['attributes'])) {
                         $attributeValues = [];
                         foreach ($variantData['attributes'] as $attributeId => $valueId) {
@@ -758,22 +745,13 @@ class ProduitController extends Controller
                         $variant->attributeValues()->attach($attributeValues);
                     }
                 }
-
-                // Supprimer les variantes qui ne sont plus présentes
-                $variantsToDelete = array_diff($existingVariantIds, $updatedVariantIds);
-                if (!empty($variantsToDelete)) {
-                    $produit->variants()->whereIn('id', $variantsToDelete)->delete();
-                }
-            } else {
-                // Si le produit n'a plus de variantes, supprimer toutes les variantes existantes
-                $produit->variants()->delete();
             }
 
             DB::commit();
 
             $responseMessage = $hasVariants 
-                ? "Le produit avec variantes a bien été modifié. Stock total : {$data['stock_quantity']} unités." 
-                : 'Le produit simple a bien été modifié.';
+                ? "Le produit avec variantes a bien été mis à jour. Stock total : {$data['stock_quantity']} unités." 
+                : 'Le produit simple a bien été mis à jour.';
 
             return response()->json([
                 'message' => $responseMessage,
@@ -786,7 +764,7 @@ class ProduitController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
-                'error' => 'Erreur lors de la modification du produit',
+                'error' => 'Erreur lors de la mise à jour du produit',
                 'message' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => $e->getFile()

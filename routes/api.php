@@ -46,6 +46,7 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::post('produit', [ProduitController::class, 'store']);
         Route::get('produit/{produit}', [ProduitController::class, 'show']);
         Route::put('produit/{produit}', [ProduitController::class, 'update']);
+        Route::post('produit/{produit}', [ProduitController::class, 'update']); // Route POST pour FormData
         Route::delete('produit/{produit}', [ProduitController::class, 'destroy']);
         Route::patch('produit/{produit}/toggle-status', [ProduitController::class, 'toggleStatus']);
 
