@@ -85,7 +85,7 @@ class TrainingController extends Controller
 
         $trainings = $query->paginate(10);
         return response()->json($trainings, 200);
-    }
+    } 
     public function indexChallenger()
     {
         $trainings = Training::with(['categories', 'equipments'])->get();

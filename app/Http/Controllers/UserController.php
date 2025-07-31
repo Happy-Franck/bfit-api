@@ -329,14 +329,89 @@ class UserController extends Controller
         ], 200);
     }
     public function coachChallengers(){
+        // Récupérer tous les challengers avec leurs séances
+        $allChallengers = User::role('challenger')->with('challengerSeances')->get();
+        $myChallengers = Auth::user()->challengers()->with('challengerSeances')->get();
+        
+        // Fonction pour calculer les statistiques d'un challenger
+        $calculateStats = function($challenger) {
+            $seances = $challenger->challengerSeances;
+            
+            // Séances totales
+            $totalSessions = $seances->count();
+            
+            // Séances du mois en cours
+            $monthlySessions = $seances->where('created_at', '>=', now()->startOfMonth())->count();
+            
+            // Séances solo (sans coach_id)
+            $soloSessions = $seances->whereNull('coach_id')->count();
+            
+            return [
+                'id' => $challenger->id,
+                'name' => $challenger->name,
+                'email' => $challenger->email,
+                'avatar' => $challenger->avatar,
+                'image' => $challenger->avatar, // Pour compatibilité avec le frontend
+                'role' => $challenger->roles->first()?->name ?? 'Challenger',
+                'totalSessions' => $totalSessions,
+                'monthlySessions' => $monthlySessions,
+                'soloSessions' => $soloSessions,
+                'sessionsCompleted' => $monthlySessions, // Pour le calcul de productivité
+            ];
+        };
+        
+        // Appliquer les statistiques à tous les challengers
+        $allChallengersWithStats = $allChallengers->map($calculateStats);
+        $myChallengersWithStats = $myChallengers->map($calculateStats);
+        
         return response()->json([
-            'allChallengers' => User::role('challenger')->get(),
-            'myChallengers' => Auth::user()->challengers
+            'allChallengers' => $allChallengersWithStats,
+            'myChallengers' => $myChallengersWithStats
         ]);
     }
     public function showChallenger(User $user){
+        $challenger = $user->load('challengerSeances.trainings');
+        
+        // Calculer les exercices RÉALISÉS par jour de la semaine pour le graphique
+        $seances = $challenger->challengerSeances;
+        $exerciseCountByDay = [
+            'Mon' => 0, 'Tue' => 0, 'Wed' => 0, 'Thu' => 0, 
+            'Fri' => 0, 'Sat' => 0, 'Sun' => 0
+        ];
+        
+        foreach($seances as $seance) {
+            // On considère que la date de création de la séance = date de réalisation
+            $seanceDate = $seance->created_at;
+            $dayOfWeek = date('D', strtotime($seanceDate));
+            
+            // Compter seulement les exercices qui ont été assignés (trainings)
+            $exerciseCount = $seance->trainings->count();
+            
+            // Debug: Log les informations de chaque séance
+            \Log::info('Seance debug', [
+                'seance_id' => $seance->id,
+                'created_at' => $seanceDate,
+                'day_of_week' => $dayOfWeek,
+                'exercise_count' => $exerciseCount
+            ]);
+            
+            // Mapper les jours anglais vers notre format
+            $dayMap = [
+                'Mon' => 'Mon', 'Tue' => 'Tue', 'Wed' => 'Wed', 'Thu' => 'Thu',
+                'Fri' => 'Fri', 'Sat' => 'Sat', 'Sun' => 'Sun'
+            ];
+            
+            if (isset($dayMap[$dayOfWeek])) {
+                $exerciseCountByDay[$dayMap[$dayOfWeek]] += $exerciseCount;
+            }
+        }
+        
+        // Debug: Log le résultat final
+        \Log::info('Final exercise count by day', $exerciseCountByDay);
+        
         return response()->json([
-            'challenger' => $user->load('challengerSeances.trainings'),
+            'challenger' => $challenger,
+            'exerciseCountByDay' => array_values($exerciseCountByDay) // Retourner seulement les valeurs
         ]);
     }
 
