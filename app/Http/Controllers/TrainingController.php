@@ -86,9 +86,29 @@ class TrainingController extends Controller
         $trainings = $query->paginate(10);
         return response()->json($trainings, 200);
     } 
-    public function indexChallenger()
+    public function indexChallenger(Request $request)
     {
-        $trainings = Training::with(['categories', 'equipments'])->get();
+        $query = Training::with(['categories', 'equipments']);
+
+        // Recherche (optionnelle pour challenger)
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%")
+                  ->orWhereHas('categories', function($categoryQuery) use ($search) {
+                      $categoryQuery->where('name', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('equipments', function($equipmentQuery) use ($search) {
+                      $equipmentQuery->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Tri simple par date desc pour pertinence
+        $query->orderByDesc('created_at');
+
+        $trainings = $query->get();
         return response()->json([
             'trainings' => $trainings,
         ], 200);

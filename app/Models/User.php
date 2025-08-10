@@ -183,4 +183,10 @@ class User extends Authenticatable
     {
         return $this->cartItems()->where('produit_id', $produit->id)->delete();
     }
+
+    // Blogs authored by the user
+    public function blogs()
+    {
+        return $this->hasMany(Blog::class);
+    }
 }

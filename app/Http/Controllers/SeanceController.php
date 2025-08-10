@@ -141,7 +141,7 @@ class SeanceController extends Controller
         $sceance->admin_id = $admin->id;
         $sceance->coach_id = $coach->id;
         $sceance->challenger_id = $challenger->id;
-        //$sceance->validated = false;
+        $sceance->validated = null; // Séance assignée par défaut
         $sceance->save();
         return response()->json([
             'message' => "La séance a bien été créé.",
@@ -156,7 +156,7 @@ class SeanceController extends Controller
         $sceance->admin_id = $admin->id;
         $sceance->coach_id = $coach->id;
         $sceance->challenger_id = $challenger->id;
-        //$sceance->validated = false;
+        $sceance->validated = null; // Séance assignée par défaut
         $sceance->save();
         return response()->json([
             'message' => "La séance a bien été créé.",
@@ -317,10 +317,10 @@ class SeanceController extends Controller
     }
     public function updateDecliner(Seance $seance)
     {
-        $seance->validated = null;
+        $seance->validated = false;
         $seance->save();
         return response()->json([
-            'mesage' => "Félicitation vous avez terminé votre séance.",
+            'message' => "La séance a été déclinée car une erreur a été constatée.",
         ], 200);
     }
 

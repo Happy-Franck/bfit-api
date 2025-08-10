@@ -5,18 +5,18 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdviceController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\TrainingController;
+use App\Http\Controllers\SeanceController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProduitController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\SeanceController;
-use App\Http\Controllers\TrainingController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductTypeController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\OrderController;
+// use App\Http\Controllers\OrderController; // Temporarily commented out
 use App\Http\Controllers\ProductAttributeController;
-use App\Http\Controllers\ProductTypeAttributeController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\ProductAttributeValueController;
+use App\Http\Controllers\BlogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -69,10 +69,10 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::get('product-type/{productType}/attributes', [ProductTypeController::class, 'getAttributes']);
 
         // Gestion des commandes (admin)
-        Route::get('orders', [OrderController::class, 'adminIndex']);
-        Route::get('orders/{order}', [OrderController::class, 'adminShow']);
-        Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus']);
-        Route::patch('orders/{order}/mark-paid', [OrderController::class, 'markAsPaid']);
+        // Route::get('orders', [OrderController::class, 'adminIndex']);
+        // Route::get('orders/{order}', [OrderController::class, 'adminShow']);
+        // Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus']);
+        // Route::patch('orders/{order}/mark-paid', [OrderController::class, 'markAsPaid']);
 
         // CRUD role
         Route::get('role',[RoleController::class, 'index']);
@@ -137,6 +137,13 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::post('users/{coach}/assign-challenger', [SeanceController::class, 'assignSeanceCoachChallenger']);
         Route::post('users/{challenger}/assign-coach', [SeanceController::class, 'assignSeanceChallengerCoach']);
         Route::delete('seance/{seance}', [SeanceController::class, 'destroySeance']);
+
+        // CRUD blog (admin)
+        Route::get('blogs', [BlogController::class, 'index']);
+        Route::get('blogs/{blog}', [BlogController::class, 'show']);
+        Route::post('blogs', [BlogController::class, 'store']);
+        Route::put('blogs/{blog}', [BlogController::class, 'update']);
+        Route::delete('blogs/{blog}', [BlogController::class, 'destroy']);
     }
 );
 
@@ -184,7 +191,7 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         Route::get('user/{user}/challenger-coachs',[UserController::class,'myCoachs']);
 
         //Product, advices & comments
-        Route::get('/produit', [ProduitController::class, 'index']);
+        Route::get('/produit', [ProduitController::class, 'indexChallenger']);
         Route::get('/produit/{produit}', [ProduitController::class, 'show']);
         Route::post('/produit/{produit}/commenter', [AdviceController::class, 'store']);
         Route::delete('/produit/{produit}/commenter/{advice}', [AdviceController::class, 'destroy']);
@@ -201,6 +208,10 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         //get trainings
         Route::get('training', [TrainingController::class, 'indexChallenger']);
         Route::get('training/{training}', [TrainingController::class, 'showChallenger']);
+
+        // Blogs read-only for challenger
+        Route::get('blogs', [BlogController::class, 'index']);
+        Route::get('blogs/{blog}', [BlogController::class, 'show']);
 
         //Séance management
         Route::get('seance', [SeanceController::class, 'indexChallenger']); //ok
@@ -244,10 +255,10 @@ Route::middleware('auth:sanctum')->prefix('shop')->group(function () {
     Route::get('cart/count', [CartController::class, 'count']);
     
     // Gestion des commandes
-    Route::get('orders', [OrderController::class, 'index']);
-    Route::post('orders', [OrderController::class, 'store']);
-    Route::get('orders/{order}', [OrderController::class, 'show']);
-    Route::patch('orders/{order}/cancel', [OrderController::class, 'cancel']);
+    // Route::get('orders', [OrderController::class, 'index']);
+    // Route::post('orders', [OrderController::class, 'store']);
+    // Route::get('orders/{order}', [OrderController::class, 'show']);
+    // Route::patch('orders/{order}/cancel', [OrderController::class, 'cancel']);
     
     // Avis sur les produits (accessible à tous les utilisateurs connectés)
     Route::post('products/{produit}/reviews', [AdviceController::class, 'store']);

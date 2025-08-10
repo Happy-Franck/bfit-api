@@ -77,7 +77,88 @@ class ProduitController extends Controller
             ], 500);
         }
     }
+    public function indexChallenger(Request $request)
+    {
+        try {
+            // Récupérer tous les types de produits avec le nombre de produits pour chaque type
+            $productTypes = \App\Models\ProductType::withCount('produits')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
 
+            // Calculer le total de tous les produits (sans filtre)
+            $totalProductsCount = Produit::count();
+
+            $query = Produit::query()
+                ->select([
+                    'id', 'name', 'image', 'description', 'poid', 'price', 
+                    'product_type_id', 'stock_quantity', 'is_active', 
+                    'created_at', 'updated_at'
+                ]);
+
+            // Recherche par nom
+            if ($request->filled('search')) {
+                $searchTerm = $request->search;
+                $query->where('name', 'LIKE', "%{$searchTerm}%");
+            }
+
+            // Filtrage par type de produit
+            if ($request->filled('product_type_id')) {
+                $query->where('product_type_id', $request->product_type_id);
+            }
+
+            // Tri
+            $sortBy = $request->get('sort_by', 'id');
+            $sortOrder = $request->get('sort_order', 'desc');
+            
+            // Validation des colonnes de tri autorisées
+            $allowedSortColumns = ['id', 'name', 'price', 'stock_quantity', 'is_active', 'product_type_id', 'created_at'];
+            if (!in_array($sortBy, $allowedSortColumns)) {
+                $sortBy = 'id';
+            }
+            
+            $query->orderBy($sortBy, $sortOrder);
+
+            // Pagination
+            $perPage = $request->get('per_page', 10);
+            $produits = $query->paginate($perPage);
+
+            // Charger les relations après pagination
+            $produits->load('productType');
+
+            // Ajouter les données supplémentaires
+            foreach ($produits as $produit) {
+                // Calculer la note moyenne
+                $produit->rating = $produit->advices()->avg('note') ?? 0;
+            }
+
+            $response = [
+                'data' => $produits->items(),
+                'current_page' => $produits->currentPage(),
+                'last_page' => $produits->lastPage(),
+                'per_page' => $produits->perPage(),
+                'total' => $produits->total(),
+                'total_products_count' => $totalProductsCount, // Total de tous les produits
+                'pagination' => [
+                    'current_page' => $produits->currentPage(),
+                    'last_page' => $produits->lastPage(),
+                    'per_page' => $produits->perPage(),
+                    'total' => $produits->total()
+                ],
+                'product_types' => $productTypes
+            ];
+
+            return response()->json($response, 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des produits',
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
+    }
     /**
      * Store a newly created resource in storage.
      */
@@ -214,30 +295,6 @@ class ProduitController extends Controller
 
             // Gestion des variantes
             if ($hasVariants) {
-                // Debug: afficher tous les fichiers reçus
-                \Log::info("=== DEBUG IMAGES VARIANTES ===");
-                \Log::info("Fichiers reçus dans la requête:", array_keys($request->allFiles()));
-                \Log::info("Toutes les clés de la requête:", array_keys($request->all()));
-                
-                // Debug: afficher le contenu détaillé des fichiers
-                foreach ($request->allFiles() as $key => $file) {
-                    if (is_array($file)) {
-                        foreach ($file as $subKey => $subFile) {
-                            \Log::info("Fichier trouvé: {$key}[{$subKey}]", [
-                                'original_name' => $subFile->getClientOriginalName(),
-                                'size' => $subFile->getSize(),
-                                'mime_type' => $subFile->getMimeType()
-                            ]);
-                        }
-                    } else {
-                        \Log::info("Fichier trouvé: {$key}", [
-                            'original_name' => $file->getClientOriginalName(),
-                            'size' => $file->getSize(),
-                            'mime_type' => $file->getMimeType()
-                        ]);
-                    }
-                }
-                
                 foreach ($variants as $index => $variantData) {
                     // Créer la variante
                     $variant = $produit->variants()->create([
@@ -252,11 +309,9 @@ class ProduitController extends Controller
 
                     // Gestion de l'image de la variante
                     $imageFound = false;
-                    \Log::info("Recherche d'image pour la variante {$index}");
                     
                     // Vérifier avec underscore (format réel envoyé par le frontend)
                     if ($request->hasFile("variant_images_{$index}")) {
-                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images_{$index}");
                         $variantImage = $request->file("variant_images_{$index}");
                         $originalName = $variantImage->getClientOriginalName();
                         $extension = $variantImage->getClientOriginalExtension();
@@ -270,12 +325,10 @@ class ProduitController extends Controller
                         
                         // Mettre à jour la variante avec le nom de l'image
                         $variant->update(['image' => $variantImageName]);
-                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
                         $imageFound = true;
                     }
                     // Fallback: vérifier aussi avec le point (au cas où)
                     elseif ($request->hasFile("variant_images.{$index}")) {
-                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images.{$index}");
                         $variantImage = $request->file("variant_images.{$index}");
                         $originalName = $variantImage->getClientOriginalName();
                         $extension = $variantImage->getClientOriginalExtension();
@@ -289,12 +342,11 @@ class ProduitController extends Controller
                         
                         // Mettre à jour la variante avec le nom de l'image
                         $variant->update(['image' => $variantImageName]);
-                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
                         $imageFound = true;
                     }
                     
                     if (!$imageFound) {
-                        \Log::info("Aucune image trouvée pour la variante {$index}");
+                        // \Log::info("Aucune image trouvée pour la variante {$index}"); // Removed debug log
                     }
 
                     // Associer les valeurs d'attributs à la variante
@@ -649,30 +701,6 @@ class ProduitController extends Controller
 
             // Gestion des variantes
             if ($hasVariants) {
-                // Debug: afficher tous les fichiers reçus
-                \Log::info("=== DEBUG IMAGES VARIANTES UPDATE ===");
-                \Log::info("Fichiers reçus dans la requête:", array_keys($request->allFiles()));
-                \Log::info("Toutes les clés de la requête:", array_keys($request->all()));
-                
-                // Debug: afficher le contenu détaillé des fichiers
-                foreach ($request->allFiles() as $key => $file) {
-                    if (is_array($file)) {
-                        foreach ($file as $subKey => $subFile) {
-                            \Log::info("Fichier trouvé: {$key}[{$subKey}]", [
-                                'original_name' => $subFile->getClientOriginalName(),
-                                'size' => $subFile->getSize(),
-                                'mime_type' => $subFile->getMimeType()
-                            ]);
-                        }
-                    } else {
-                        \Log::info("Fichier trouvé: {$key}", [
-                            'original_name' => $file->getClientOriginalName(),
-                            'size' => $file->getSize(),
-                            'mime_type' => $file->getMimeType()
-                        ]);
-                    }
-                }
-                
                 // Supprimer toutes les variantes existantes
                 $produit->variants()->delete();
                 
@@ -691,11 +719,9 @@ class ProduitController extends Controller
 
                     // Gestion de l'image de la variante
                     $imageFound = false;
-                    \Log::info("Recherche d'image pour la variante {$index}");
                     
                     // Vérifier avec underscore (format réel envoyé par le frontend)
                     if ($request->hasFile("variant_images_{$index}")) {
-                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images_{$index}");
                         $variantImage = $request->file("variant_images_{$index}");
                         $originalName = $variantImage->getClientOriginalName();
                         $extension = $variantImage->getClientOriginalExtension();
@@ -709,12 +735,10 @@ class ProduitController extends Controller
                         
                         // Mettre à jour la variante avec le nom de l'image
                         $variant->update(['image' => $variantImageName]);
-                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
                         $imageFound = true;
                     }
                     // Fallback: vérifier aussi avec le point (au cas où)
                     elseif ($request->hasFile("variant_images.{$index}")) {
-                        \Log::info("Image trouvée pour la variante {$index} avec la clé: variant_images.{$index}");
                         $variantImage = $request->file("variant_images.{$index}");
                         $originalName = $variantImage->getClientOriginalName();
                         $extension = $variantImage->getClientOriginalExtension();
@@ -728,12 +752,11 @@ class ProduitController extends Controller
                         
                         // Mettre à jour la variante avec le nom de l'image
                         $variant->update(['image' => $variantImageName]);
-                        \Log::info("Image stockée pour la variante {$index}: {$variantImageName}");
                         $imageFound = true;
                     }
                     
                     if (!$imageFound) {
-                        \Log::info("Aucune image trouvée pour la variante {$index}");
+                        // \Log::info("Aucune image trouvée pour la variante {$index}"); // Removed debug log
                     }
 
                     // Associer les valeurs d'attributs à la variante
