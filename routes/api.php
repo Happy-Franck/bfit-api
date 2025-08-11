@@ -17,6 +17,7 @@ use App\Http\Controllers\ProductAttributeController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductAttributeValueController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\ProductTypeAttributeController;
 
 /*
 |--------------------------------------------------------------------------
