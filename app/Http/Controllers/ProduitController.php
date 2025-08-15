@@ -21,12 +21,23 @@ class ProduitController extends Controller
                     'id', 'name', 'image', 'description', 'poid', 'price', 
                     'product_type_id', 'stock_quantity', 'is_active', 
                     'created_at', 'updated_at'
-                ]);
+                ])
+                ->withCount(['advices as comments_count']);
 
             // Recherche par nom
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where('name', 'LIKE', "%{$searchTerm}%");
+            }
+
+            // Filtrage par prix
+            $minPrice = $request->get('min_price');
+            $maxPrice = $request->get('max_price');
+            if ($minPrice !== null && $minPrice !== '') {
+                $query->where('price', '>=', (float) $minPrice);
+            }
+            if ($maxPrice !== null && $maxPrice !== '') {
+                $query->where('price', '<=', (float) $maxPrice);
             }
 
             // Tri
@@ -94,7 +105,8 @@ class ProduitController extends Controller
                     'id', 'name', 'image', 'description', 'poid', 'price', 
                     'product_type_id', 'stock_quantity', 'is_active', 
                     'created_at', 'updated_at'
-                ]);
+                ])
+                ->withCount(['advices as comments_count']);
 
             // Recherche par nom
             if ($request->filled('search')) {
@@ -105,6 +117,16 @@ class ProduitController extends Controller
             // Filtrage par type de produit
             if ($request->filled('product_type_id')) {
                 $query->where('product_type_id', $request->product_type_id);
+            }
+
+            // Filtrage par prix
+            $minPrice = $request->get('min_price');
+            $maxPrice = $request->get('max_price');
+            if ($minPrice !== null && $minPrice !== '') {
+                $query->where('price', '>=', (float) $minPrice);
+            }
+            if ($maxPrice !== null && $maxPrice !== '') {
+                $query->where('price', '<=', (float) $maxPrice);
             }
 
             // Tri

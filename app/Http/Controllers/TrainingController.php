@@ -31,6 +31,23 @@ class TrainingController extends Controller
             });
         }
 
+        // Filtre par catégories (ET logique)
+        $categoriesParam = $request->get('categories', []);
+        if (is_string($categoriesParam)) {
+            $categoriesParam = array_filter(explode(',', $categoriesParam));
+        }
+        if (!is_array($categoriesParam)) {
+            $categoriesParam = [];
+        }
+        $categoryIds = array_values(array_unique(array_map('intval', $categoriesParam)));
+        if (!empty($categoryIds)) {
+            foreach ($categoryIds as $categoryId) {
+                $query->whereHas('categories', function($q) use ($categoryId) {
+                    $q->where('categories.id', $categoryId);
+                });
+            }
+        }
+
         // Tri
         $sortBy = $request->get('sort_by', 'id');
         $sortOrder = $request->get('sort_order', 'asc');
@@ -71,6 +88,23 @@ class TrainingController extends Controller
             });
         }
 
+        // Filtre par catégories (ET logique)
+        $categoriesParam = $request->get('categories', []);
+        if (is_string($categoriesParam)) {
+            $categoriesParam = array_filter(explode(',', $categoriesParam));
+        }
+        if (!is_array($categoriesParam)) {
+            $categoriesParam = [];
+        }
+        $categoryIds = array_values(array_unique(array_map('intval', $categoriesParam)));
+        if (!empty($categoryIds)) {
+            foreach ($categoryIds as $categoryId) {
+                $query->whereHas('categories', function($q) use ($categoryId) {
+                    $q->where('categories.id', $categoryId);
+                });
+            }
+        }
+
         // Tri
         $sortBy = $request->get('sort_by', 'id');
         $sortOrder = $request->get('sort_order', 'asc');
@@ -105,12 +139,83 @@ class TrainingController extends Controller
             });
         }
 
+        // Filtre par catégories (ET logique)
+        $categoriesParam = $request->get('categories', []);
+        if (is_string($categoriesParam)) {
+            $categoriesParam = array_filter(explode(',', $categoriesParam));
+        }
+        if (!is_array($categoriesParam)) {
+            $categoriesParam = [];
+        }
+        $categoryIds = array_values(array_unique(array_map('intval', $categoriesParam)));
+        if (!empty($categoryIds)) {
+            foreach ($categoryIds as $categoryId) {
+                $query->whereHas('categories', function($q) use ($categoryId) {
+                    $q->where('categories.id', $categoryId);
+                });
+            }
+        }
+
         // Tri simple par date desc pour pertinence
         $query->orderByDesc('created_at');
 
-        $trainings = $query->get();
+        $perPage = (int) $request->get('per_page', 12);
+        $trainings = $query->paginate($perPage);
+
         return response()->json([
-            'trainings' => $trainings,
+            'trainings' => $trainings->items(),
+            'total' => $trainings->total(),
+            'per_page' => $trainings->perPage(),
+            'current_page' => $trainings->currentPage(),
+            'last_page' => $trainings->lastPage(),
+            'has_more' => $trainings->hasMorePages(),
+        ], 200);
+    }
+    
+    public function show(Training $training)
+    {
+        // Charger toutes les relations nécessaires
+        $training->load(['categories', 'equipments']);
+        
+        // Récupérer des suggestions de trainings similaires
+        // Basé sur les catégories communes
+        $categoryIds = $training->categories->pluck('id')->toArray();
+        
+        $suggestions = Training::where('id', '!=', $training->id)
+            ->whereHas('categories', function($query) use ($categoryIds) {
+                $query->whereIn('categories.id', $categoryIds);
+            })
+            ->with(['categories', 'equipments'])
+            ->inRandomOrder()
+            ->limit(8) // 8 suggestions pour avoir plus de choix
+            ->get();
+        
+        // Si pas assez de suggestions basées sur les catégories, compléter avec des trainings aléatoires
+        if ($suggestions->count() < 8) {
+            $additionalSuggestions = Training::where('id', '!=', $training->id)
+                ->whereNotIn('id', $suggestions->pluck('id')->toArray())
+                ->with(['categories', 'equipments'])
+                ->inRandomOrder()
+                ->limit(8 - $suggestions->count())
+                ->get();
+            
+            $suggestions = $suggestions->merge($additionalSuggestions);
+        }
+
+        return response()->json([
+            'training' => $training,
+            'categories' => $training->categories,
+            'equipments' => $training->equipments,
+            'suggestions' => $suggestions,
+        ], 200);
+    }
+    
+    public function showChallenger(Training $training)
+    {
+        return response()->json([
+            'training' => $training,
+            'categories' => $training->categories,
+            'equipments' => $training->equipments,
         ], 200);
     }
 
@@ -171,57 +276,7 @@ class TrainingController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(Training $training)
-    {
-        // Charger toutes les relations nécessaires
-        $training->load(['categories', 'equipments']);
-        
-        // Récupérer des suggestions de trainings similaires
-        // Basé sur les catégories communes
-        $categoryIds = $training->categories->pluck('id')->toArray();
-        
-        $suggestions = Training::where('id', '!=', $training->id)
-            ->whereHas('categories', function($query) use ($categoryIds) {
-                $query->whereIn('categories.id', $categoryIds);
-            })
-            ->with(['categories', 'equipments'])
-            ->inRandomOrder()
-            ->limit(8) // 8 suggestions pour avoir plus de choix
-            ->get();
-        
-        // Si pas assez de suggestions basées sur les catégories, compléter avec des trainings aléatoires
-        if ($suggestions->count() < 8) {
-            $additionalSuggestions = Training::where('id', '!=', $training->id)
-                ->whereNotIn('id', $suggestions->pluck('id')->toArray())
-                ->with(['categories', 'equipments'])
-                ->inRandomOrder()
-                ->limit(8 - $suggestions->count())
-                ->get();
-            
-            $suggestions = $suggestions->merge($additionalSuggestions);
-        }
-
-        return response()->json([
-            'training' => $training,
-            'categories' => $training->categories,
-            'equipments' => $training->equipments,
-            'suggestions' => $suggestions,
-        ], 200);
-    }
-    
-    public function showChallenger(Training $training)
-    {
-        return response()->json([
-            'training' => $training,
-            'categories' => $training->categories,
-            'equipments' => $training->equipments,
-        ], 200);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
+     * Show the form for creating a new resource.
      */
     public function edit(Training $training)
     {
