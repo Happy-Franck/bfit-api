@@ -7,6 +7,9 @@ use App\Models\Training;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class SeanceController extends Controller
 {
@@ -93,6 +96,130 @@ class SeanceController extends Controller
     }
 
     /**
+     * Generate an AI-like suggested plan for the next seance for the current challenger.
+     */
+    public function generateAiPlanChallenger(Request $request)
+    {
+        $userId = Auth::id();
+        $availableTime = (int) $request->get('available_time', 60);
+
+        // Récupérer les trainings disponibles
+        $trainings = Training::with('categories')->get();
+        if ($trainings->isEmpty()) {
+            return response()->json([
+                'plan' => [],
+                'message' => 'Aucun exercice disponible'
+            ], 200);
+        }
+
+        // Récupérer les 2-3 dernières séances du challenger
+        $recentSeances = Seance::where('challenger_id', $userId)
+            ->with(['trainings.categories'])
+            ->orderByDesc('created_at')
+            ->take(3)
+            ->get();
+
+        // Essayer l'IA Python (workout_generator.py --plan)
+        try {
+            $scriptPath = base_path('app/Http/Controllers/IA/workout_generator.py');
+            $process = new Process(['/home/happy/Documents/PERSO/HPFit/.venv/bin/python', $scriptPath, '--plan']);
+            $process->setTimeout(30);
+
+            // User profile minimal (pas de valeur par défaut ici)
+            $user = Auth::user();
+            $userProfile = [
+                'age' => data_get($user, 'age'),
+                'weight_kg' => data_get($user, 'weight_kg'),
+                'height_cm' => data_get($user, 'height_cm'),
+                'fitness_level' => data_get($user, 'fitness_level'),
+                'goal' => data_get($user, 'goal'),
+                'available_time' => $availableTime,
+                'equipment' => data_get($user, 'equipment', []),
+            ];
+            if (!is_array($userProfile['equipment'])) {
+                $userProfile['equipment'] = [];
+            }
+            $userProfile = array_filter($userProfile, function($v) { return !is_null($v) && $v !== ''; });
+
+            // Trainings et séances récentes formatés pour le script
+            $trainingsArray = $trainings->map(function($t) {
+                return [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'categories' => ($t->categories ? $t->categories->map(function($c){ return ['name' => $c->name]; })->values()->all() : []),
+                ];
+            })->values()->all();
+
+            $recentArray = $recentSeances->map(function($s) {
+                return [
+                    'id' => $s->id,
+                    'created_at' => (string) $s->created_at,
+                    'trainings' => $s->trainings->map(function($tr){
+                        return [
+                            'id' => $tr->id,
+                            'name' => $tr->name,
+                            'categories' => ($tr->categories ? $tr->categories->map(function($c){ return ['name' => $c->name]; })->values()->all() : []),
+                        ];
+                    })->values()->all(),
+                ];
+            })->values()->all();
+
+            $payload = json_encode([
+                'user' => $userProfile,
+                'recent_seances' => $recentArray,
+                'trainings' => $trainingsArray,
+                'available_time' => $availableTime,
+            ], JSON_UNESCAPED_UNICODE);
+
+            // Passer le JSON en stdin et l'API Key en env
+            $process->setInput($payload);
+            $process->setEnv(array_merge($_ENV, $_SERVER, [
+                'OPENAI_API_KEY' => env('OPENAI_API_KEY'),
+            ]));
+
+            $process->run();
+
+            $output = $process->getOutput();
+            $errorOutput = $process->getErrorOutput();
+
+            // Tenter de décoder la sortie comme JSON (succès ou erreur)
+            $decoded = json_decode($output ?: '{}', true);
+
+            if ($process->isSuccessful()) {
+                if (json_last_error() === JSON_ERROR_NONE && isset($decoded['plan']) && is_array($decoded['plan'])) {
+                    return response()->json([
+                        'plan' => $decoded['plan'],
+                    ], 200);
+                }
+                Log::warning('AI planner returned invalid JSON structure', ['output' => $output]);
+                return response()->json([
+                    'error' => 'Réponse IA invalide',
+                    'details' => $output,
+                ], 502);
+            }
+
+            // Process non successful: retourner la raison
+            if (json_last_error() === JSON_ERROR_NONE && isset($decoded['error'])) {
+                return response()->json([
+                    'error' => 'Échec génération IA',
+                    'details' => $decoded['error'],
+                ], 502);
+            }
+
+            return response()->json([
+                'error' => 'Process IA échoué',
+                'details' => trim($errorOutput) ?: 'Raison inconnue',
+            ], 502);
+        } catch (\Throwable $e) {
+            Log::warning('AI planner exception', ['message' => $e->getMessage()]);
+            return response()->json([
+                'error' => 'Exception lors de la génération IA',
+                'details' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create()
@@ -130,6 +257,24 @@ class SeanceController extends Controller
         }
         return response()->json([
             'message' => "La séance a bien été créé.",
+        ], 201);
+    }
+
+    /**
+     * Challenger requests coaching: create an empty séance with only the challenger set.
+     */
+    public function requestCoachingChallenger(Request $request)
+    {
+        $seance = new Seance();
+        $seance->challenger_id = Auth::id();
+        $seance->admin_id = null; // Will be claimed by an admin when assigning a coach
+        $seance->coach_id = null; // Not assigned yet
+        $seance->validated = null; // Pending/assigned state
+        $seance->save();
+
+        return response()->json([
+            'message' => "Votre demande de coaching a été créée. Un coach vous sera assigné.",
+            'seance' => $seance,
         ], 201);
     }
     public function assignSeanceCoachChallenger(Request $request, User $coach)
@@ -454,8 +599,11 @@ class SeanceController extends Controller
             'challenger_id' => 'required|exists:users,id',
         ]);
 
-        // Seul l'admin qui a créé la séance peut la modifier
-        if ($seance->admin_id !== Auth::user()->id) {
+        // Si aucune admin n'est encore assigné, l'admin courant prend la propriété
+        if ($seance->admin_id === null) {
+            $seance->admin_id = Auth::user()->id;
+        } elseif ($seance->admin_id !== Auth::user()->id) {
+            // Sinon, seul l'admin qui a créé la séance peut la modifier
             return response()->json([
                 'message' => "Vous n'êtes pas autorisé à modifier cette séance."
             ], 403);

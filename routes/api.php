@@ -81,7 +81,7 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::put('role/{role}',[RoleController::class, 'update']);
         Route::delete('role/{role}',[RoleController::class, 'destroy']);
         Route::post('role/{role}/permission-give',[RoleController::class, 'permissiongive']);
-        Route::delete('role/{role}/permission-revoke/{permission}',[RoleController::class, 'permissionrevoke']);
+        Route::delete('role/{role}/permission-revoke/{permission}',[PermissionController::class, 'permissionrevoke']);
 
         // CRUD permission
         Route::get('permission',[PermissionController::class, 'index']);
@@ -100,7 +100,7 @@ Route::middleware(['auth:sanctum','role:administrateur'])->prefix("/admin")->gro
         Route::post('user/{user}/assign-role',[UserController::class,'assignRole']);
         Route::delete('user/{user}/remove-role/{role}',[UserController::class,'removeRole']);
         Route::post('user/{user}/give-permission',[UserController::class,'givePermission']);
-        Route::delete('user/{user}/revoke-permission/{permission}',[UserController::class,'revokePermission']);
+        Route::delete('user/{user}/revoke-permission/{permission}',[PermissionController::class,'revokePermission']);
         Route::delete('user/{coach}/remove-challenger/{challenger}',[UserController::class,'removeChallenger']);
         Route::post('user/{user}/challengers-update',[UserController::class,'updateChallengers']);
         Route::delete('user/{challenger}/remove-coach/{coach}',[UserController::class,'removeCoach']);
@@ -208,8 +208,12 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         
         //get trainings
         Route::get('training', [TrainingController::class, 'indexChallenger']);
+        Route::get('training/all', [TrainingController::class, 'allChallenger']);
         Route::get('training/{training}', [TrainingController::class, 'showChallenger']);
 
+        // AI plan generation for next seance
+        Route::get('seance/generate-plan', [SeanceController::class, 'generateAiPlanChallenger']);
+        
         // Blogs read-only for challenger
         Route::get('blogs', [BlogController::class, 'index']);
         Route::get('blogs/{blog}', [BlogController::class, 'show']);
@@ -218,6 +222,7 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         Route::get('seance', [SeanceController::class, 'indexChallenger']); //ok
         Route::get('seance/{seance}', [SeanceController::class, 'show']); //ok
         Route::post('seance', [SeanceController::class, 'storeChallenger']); //ok
+        Route::post('seance/request-coaching', [SeanceController::class, 'requestCoachingChallenger']);
         Route::put('seance/{seance}/decliner', [SeanceController::class, 'updateDecliner']);
         Route::put('seance/{seance}/confirmer', [SeanceController::class, 'updateConfirmer']);
         Route::post('seance/{seance}/add-trainings', [SeanceController::class, 'addTrainingsChallenger']);

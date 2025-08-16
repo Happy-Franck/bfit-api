@@ -18,6 +18,7 @@ class AuthController extends Controller
             'telephone' => 'nullable|string|max:20',
             'cin' => 'nullable|string|unique:users',
             'taille' => 'nullable|numeric|min:0.5|max:3.0',
+            'poids' => 'nullable|numeric|min:10|max:500',
             'objectif' => 'nullable|in:prise de masse,perte de poids,maintien,prise de force,endurance,remise en forme,sèche,souplesse,rééducation,tonification,préparation physique,performance',
             'sexe' => 'nullable|in:homme,femme',
             'date_naissance' => 'nullable|date|before:today',
@@ -43,6 +44,16 @@ class AuthController extends Controller
             if (isset($validatedData[$field])) {
                 $userData[$field] = $validatedData[$field];
             }
+        }
+
+        // Initialiser l'historique de poids si fourni (poids actuel)
+        if (isset($validatedData['poids'])) {
+            $userData['poids'] = [
+                [
+                    'date' => now()->toDateString(),
+                    'valeur' => (float) $validatedData['poids'],
+                ]
+            ];
         }
 
         $user = User::create($userData)->assignRole('challenger');

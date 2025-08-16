@@ -171,7 +171,52 @@ class TrainingController extends Controller
             'has_more' => $trainings->hasMorePages(),
         ], 200);
     }
-    
+
+    /**
+     * Return all trainings for challenger (no pagination), with same filters.
+     */
+    public function allChallenger(Request $request)
+    {
+        $query = Training::with(['categories', 'equipments']);
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%")
+                  ->orWhereHas('categories', function($categoryQuery) use ($search) {
+                      $categoryQuery->where('name', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('equipments', function($equipmentQuery) use ($search) {
+                      $equipmentQuery->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        $categoriesParam = $request->get('categories', []);
+        if (is_string($categoriesParam)) {
+            $categoriesParam = array_filter(explode(',', $categoriesParam));
+        }
+        if (!is_array($categoriesParam)) {
+            $categoriesParam = [];
+        }
+        $categoryIds = array_values(array_unique(array_map('intval', $categoriesParam)));
+        if (!empty($categoryIds)) {
+            foreach ($categoryIds as $categoryId) {
+                $query->whereHas('categories', function($q) use ($categoryId) {
+                    $q->where('categories.id', $categoryId);
+                });
+            }
+        }
+
+        $query->orderByDesc('created_at');
+
+        $trainings = $query->get();
+        return response()->json([
+            'trainings' => $trainings,
+        ], 200);
+    }
+
     public function show(Training $training)
     {
         // Charger toutes les relations nécessaires
