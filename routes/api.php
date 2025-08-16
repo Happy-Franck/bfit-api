@@ -211,8 +211,8 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         Route::get('training/all', [TrainingController::class, 'allChallenger']);
         Route::get('training/{training}', [TrainingController::class, 'showChallenger']);
 
-        // AI plan generation for next seance
-        Route::get('seance/generate-plan', [SeanceController::class, 'generateAiPlanChallenger']);
+        // AI plan generation for next seance (Pro only)
+        Route::get('seance/generate-plan', [SeanceController::class, 'generateAiPlanChallenger'])->middleware('plan:pro');
         
         // Blogs read-only for challenger
         Route::get('blogs', [BlogController::class, 'index']);
@@ -222,7 +222,7 @@ Route::middleware(['auth:sanctum','role:challenger'])->name('challenger.')->pref
         Route::get('seance', [SeanceController::class, 'indexChallenger']); //ok
         Route::get('seance/{seance}', [SeanceController::class, 'show']); //ok
         Route::post('seance', [SeanceController::class, 'storeChallenger']); //ok
-        Route::post('seance/request-coaching', [SeanceController::class, 'requestCoachingChallenger']);
+        Route::post('seance/request-coaching', [SeanceController::class, 'requestCoachingChallenger'])->middleware('plan:casual_or_above');
         Route::put('seance/{seance}/decliner', [SeanceController::class, 'updateDecliner']);
         Route::put('seance/{seance}/confirmer', [SeanceController::class, 'updateConfirmer']);
         Route::post('seance/{seance}/add-trainings', [SeanceController::class, 'addTrainingsChallenger']);
@@ -275,6 +275,9 @@ Route::middleware('auth:sanctum')->prefix('shop')->group(function () {
 //---------------------------------- REGISTER ----------------------------------//
 Route::post('/register', 'App\Http\Controllers\AuthController@register');
 
+// Public billing route for plans listing (used on signup)
+Route::get('/billing/plans', [\App\Http\Controllers\BillingController::class, 'listPlans']);
+
 //---------------------------------- LOGIN ----------------------------------//
 Route::post('/login', 'App\Http\Controllers\AuthController@login');
 
@@ -287,6 +290,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
     Route::put('/profile', [UserController::class, 'updateProfile']);
     Route::get('/profile/weight-history', [UserController::class, 'getWeightHistory']);
+
+    // Billing routes
+    Route::post('/billing/checkout-session', [\App\Http\Controllers\BillingController::class, 'createCheckoutSession']);
+    Route::post('/billing/portal-session', [\App\Http\Controllers\BillingController::class, 'createPortalSession']);
+
+    // Subscription info (tier)
+    Route::get('/me/subscription', function (Request $request) {
+        $tier = app('plan.resolver')->getTier($request->user());
+        return response()->json(['tier' => $tier]);
+    });
 });
 
 // Product attributes routes

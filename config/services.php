@@ -31,4 +31,35 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        // Whitelist of allowed price IDs for plans list
+        'allowed_price_ids' => array_filter([
+            env('NEXT_PUBLIC_PRICE_ID_CASUAL_MONTHLY_EUR'),
+            env('NEXT_PUBLIC_PRICE_ID_CASUAL_YEARLY_EUR'),
+            env('NEXT_PUBLIC_PRICE_ID_PRO_MONTHLY_EUR'),
+            env('NEXT_PUBLIC_PRICE_ID_PRO_YEARLY_EUR'),
+        ]),
+        // Explicit tier mapping for robust detection
+        'price_tiers' => [
+            'casual' => array_filter([
+                env('NEXT_PUBLIC_PRICE_ID_CASUAL_MONTHLY_EUR'),
+                env('NEXT_PUBLIC_PRICE_ID_CASUAL_YEARLY_EUR'),
+            ]),
+            'pro' => array_filter([
+                env('NEXT_PUBLIC_PRICE_ID_PRO_MONTHLY_EUR'),
+                env('NEXT_PUBLIC_PRICE_ID_PRO_YEARLY_EUR'),
+            ]),
+        ],
+        // Optional CSV to extend the whitelist without code changes
+        'allowed_price_ids_csv' => env('STRIPE_ALLOWED_PRICE_IDS'),
+        // Optional portal configuration id (pcfg_...)
+        'portal_configuration' => env('STRIPE_PORTAL_CONFIGURATION'),
+    ],
+
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
 ];

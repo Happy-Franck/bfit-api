@@ -174,7 +174,7 @@ class SeanceController extends Controller
             // Passer le JSON en stdin et l'API Key en env
             $process->setInput($payload);
             $process->setEnv(array_merge($_ENV, $_SERVER, [
-                'OPENAI_API_KEY' => env('OPENAI_API_KEY'),
+                'OPENAI_API_KEY' => config('services.openai.key'),
             ]));
 
             $process->run();
