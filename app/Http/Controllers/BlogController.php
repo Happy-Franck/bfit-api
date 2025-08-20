@@ -16,7 +16,9 @@ class BlogController extends Controller
         $blogs = Blog::query()
             ->with('user');
 
-        if (!Auth::user()->hasRole('administrateur')) {
+        // Ensure public access does not call methods on null user
+        $user = Auth::user();
+        if (!$user || !$user->hasRole('administrateur')) {
             $blogs->where('published', true);
         }
 

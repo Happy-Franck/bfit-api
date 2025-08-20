@@ -482,7 +482,7 @@ class UserController extends Controller
         // Gestion de l'upload d'avatar
         if ($request->hasFile('avatar')) {
             $request->validate([
-                'avatar' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+                'avatar' => 'image|mimes:jpeg,png,jpg,gif,webp|max:2048'
             ]);
             
             \Log::info('Avatar upload détecté', [

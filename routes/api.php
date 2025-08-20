@@ -302,6 +302,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
+Route::get('blogs', [BlogController::class, 'index']);
+Route::get('blogs/{blog}', [BlogController::class, 'show']);
+
 // Product attributes routes
 Route::prefix('product-attributes')->group(function () {
     Route::get('/', [ProductAttributeController::class, 'index']);
