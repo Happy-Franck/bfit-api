@@ -208,7 +208,7 @@ class ProduitController extends Controller
 
         $rules = [
             'name' => 'required|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10048',
             'description' => 'required|string',
             'product_type_id' => 'required|exists:product_types,id',
             'is_active' => 'nullable|in:true,false,1,0',
@@ -609,7 +609,7 @@ class ProduitController extends Controller
 
         $rules = [
             'name' => 'required|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10048',
             'description' => 'required|string',
             'product_type_id' => 'required|exists:product_types,id',
             'is_active' => 'nullable|in:true,false,1,0',
