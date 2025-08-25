@@ -34,7 +34,7 @@ class CategoryController extends Controller
     {
         $this->validate($request, [
             'name' => 'required',
-            'image' => 'nullable|image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         $filename = null;
         if($request->hasFile('image')){
@@ -77,7 +77,7 @@ class CategoryController extends Controller
     {
         $this->validate($request, [
             'name' => 'required',
-            'image' => 'image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         if($request->hasFile('image')){
             $filename = $request->image->getClientOriginalName();

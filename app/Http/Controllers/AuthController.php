@@ -14,7 +14,7 @@ class AuthController extends Controller
             'name' => 'required',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:8',
-            'avatar' => 'nullable|image',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
             'telephone' => 'nullable|string|max:20',
             'cin' => 'nullable|string|unique:users',
             'taille' => 'nullable|numeric|min:0.5|max:3.0',

@@ -108,7 +108,7 @@ class EquipmentController extends Controller
         $this->validate($request, [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'image' => 'nullable|image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
 
         $image_name = null;
@@ -138,7 +138,7 @@ class EquipmentController extends Controller
         $this->validate($request, [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'image' => 'nullable|image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
 
         $equipment->name = $request->name;

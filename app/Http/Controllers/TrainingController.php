@@ -280,7 +280,7 @@ class TrainingController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'description' => 'required',
-            'image' => 'nullable|image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
             'video' => 'nullable',
             'categories' => 'required|array',
             'equipments' => 'nullable|array'
@@ -336,7 +336,7 @@ class TrainingController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'description' => 'required',
-            'image' => 'nullable|image',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:25600',
             'video' => 'nullable|mimetypes:video/mp4',
             'categories' => 'required|array',
             'equipments' => 'nullable|array'

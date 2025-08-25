@@ -337,7 +337,7 @@ class SeanceController extends Controller
     public function updateImgDebut(Request $request, Seance $seance)
     {
         $this->validate($request, [
-            'img_debut' => 'image',
+            'img_debut' => 'image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         if($request->hasFile('img_debut')){
             $image_name = $request->img_debut->getClientOriginalName();
@@ -370,7 +370,7 @@ class SeanceController extends Controller
     public function updateImgFin(Request $request, Seance $seance)
     {
         $this->validate($request, [
-            'img_fin' => 'image',
+            'img_fin' => 'image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         if($request->hasFile('img_fin')){
             $image_name = $request->img_fin->getClientOriginalName();
@@ -392,7 +392,7 @@ class SeanceController extends Controller
     public function updateChallengerDebut(Request $request, Seance $seance)
     {
         $this->validate($request, [
-            'img_debut' => 'image',
+            'img_debut' => 'image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         if($request->hasFile('img_debut')){
             $image_name = $request->img_debut->getClientOriginalName();
@@ -426,7 +426,7 @@ class SeanceController extends Controller
     public function updateChallengerFin(Request $request, Seance $seance)
     {
         $this->validate($request, [
-            'img_fin' => 'image',
+            'img_fin' => 'image|mimes:jpeg,png,jpg,gif,webp|max:25600',
         ]);
         if($request->hasFile('img_fin')){
             $image_name = $request->img_fin->getClientOriginalName();
