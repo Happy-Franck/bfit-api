@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->string('slug')->unique();
             $table->string('excerpt', 500)->nullable();
             $table->string('image')->nullable();
-            $table->string('type')->nullable(); // e.g., tofu/mofu/bofu
+            $table->enum('type', ['tofu', 'mofu', 'bofu'])->nullable();
             $table->boolean('published')->default(false);
             $table->timestamp('published_at')->nullable();
             $table->longText('content'); // mdx-like markdown content

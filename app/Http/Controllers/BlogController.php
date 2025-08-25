@@ -41,6 +41,12 @@ class BlogController extends Controller
 
     public function show(Blog $blog)
     {
+        $user = Auth::user();
+        if (!$user || !$user->hasRole('administrateur')) {
+            if (!$blog->published) {
+                abort(404);
+            }
+        }
         return response()->json($blog->load('user'));
     }
 
@@ -51,18 +57,29 @@ class BlogController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('blogs', 'slug')],
             'excerpt' => ['nullable', 'string', 'max:500'],
-            'image' => ['nullable', 'string'],
-            'type' => ['nullable', 'string', 'max:50'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+            'type' => ['nullable', 'in:tofu,mofu,bofu'],
             'content' => ['required', 'string'],
-            'published' => ['sometimes', 'boolean'],
+            'published' => ['sometimes'],
         ]);
 
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['title']);
         }
 
+        // Gestion de l'upload d'image
+        $image_name = null;
+        if ($request->hasFile('image')) {
+            $image_name = $request->image->getClientOriginalName();
+            $request->image->storeAs('blogs', $image_name, 'public');
+        }
+
+        // Convertir published en boolean
+        $validated['published'] = filter_var($validated['published'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        
         $blog = new Blog($validated);
         $blog->user_id = Auth::id();
+        $blog->image = $image_name;
         $blog->save();
 
         // Auto set published_at to created_at when published
@@ -81,9 +98,9 @@ class BlogController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('blogs', 'slug')->ignore($blog->id)],
             'excerpt' => ['nullable', 'string', 'max:500'],
-            'image' => ['nullable', 'string'],
-            'type' => ['nullable', 'string', 'max:50'],
-            'published' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+            'type' => ['nullable', 'in:tofu,mofu,bofu'],
+            'published' => ['sometimes'],
             'content' => ['required', 'string'],
         ]);
 
@@ -92,6 +109,26 @@ class BlogController extends Controller
             $validated['slug'] = Str::slug($validated['title']);
         }
 
+        // Gestion de l'upload d'image
+        if ($request->hasFile('image')) {
+            // Supprimer l'ancienne image si elle existe
+            if ($blog->image) {
+                $oldImagePath = storage_path('app/public/blogs/' . $blog->image);
+                if (file_exists($oldImagePath)) {
+                    unlink($oldImagePath);
+                }
+            }
+            
+            $image_name = $request->image->getClientOriginalName();
+            $request->image->storeAs('blogs', $image_name, 'public');
+            $validated['image'] = $image_name;
+        }
+
+        // Convertir published en boolean
+        if (isset($validated['published'])) {
+            $validated['published'] = filter_var($validated['published'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
         $wasPublished = $blog->published;
 
         $blog->update($validated);
@@ -108,6 +145,14 @@ class BlogController extends Controller
     // Admin: delete
     public function destroy(Blog $blog)
     {
+        // Supprimer l'image associée si elle existe
+        if ($blog->image) {
+            $imagePath = storage_path('app/public/blogs/' . $blog->image);
+            if (file_exists($imagePath)) {
+                unlink($imagePath);
+            }
+        }
+        
         $blog->delete();
         return response()->json(['message' => 'Deleted']);
     }
