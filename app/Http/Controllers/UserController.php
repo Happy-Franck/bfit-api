@@ -340,11 +340,17 @@ class UserController extends Controller
             // Séances totales
             $totalSessions = $seances->count();
             
+            // Séances validées (completed)
+            $completedSessions = $seances->where('validated', 1)->count();
+            
             // Séances du mois en cours
             $monthlySessions = $seances->where('created_at', '>=', now()->startOfMonth())->count();
             
             // Séances solo (sans coach_id)
             $soloSessions = $seances->whereNull('coach_id')->count();
+            
+            // Calculer la productivité (pourcentage de séances validées)
+            $productivity = $totalSessions > 0 ? round(($completedSessions / $totalSessions) * 100) : 0;
             
             return [
                 'id' => $challenger->id,
@@ -354,9 +360,21 @@ class UserController extends Controller
                 'image' => $challenger->avatar, // Pour compatibilité avec le frontend
                 'role' => $challenger->roles->first()?->name ?? 'Challenger',
                 'totalSessions' => $totalSessions,
+                'completedSessions' => $completedSessions,
                 'monthlySessions' => $monthlySessions,
                 'soloSessions' => $soloSessions,
-                'sessionsCompleted' => $monthlySessions, // Pour le calcul de productivité
+                'productivity' => $productivity,
+                // Inclure les données brutes pour le frontend
+                'challenger_seances' => $seances->map(function($seance) {
+                    return [
+                        'id' => $seance->id,
+                        'validated' => $seance->validated,
+                        'created_at' => $seance->created_at,
+                        'coach_id' => $seance->coach_id,
+                        'type' => $seance->coach_id ? 'coached' : 'solo',
+                        'is_solo' => !$seance->coach_id
+                    ];
+                })
             ];
         };
         
